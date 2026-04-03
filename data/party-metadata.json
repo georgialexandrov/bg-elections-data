@@ -1,0 +1,818 @@
+{
+  "_meta": {
+    "description": "Bulgarian political party metadata for election visualization",
+    "colorSource": "Wikipedia Module:Political_party (en.wikipedia.org) — canonical hex codes used in election result articles worldwide",
+    "lastUpdated": "2026-03-30",
+    "notes": "Colors marked (inferred) lack a dedicated Wikipedia module entry; the color is taken from the parent/main party or Wikidata."
+  },
+
+  "tier1_current_2024": [
+    {
+      "namesBG": ["ГЕРБ-СДС", "ГЕРБ – СДС"],
+      "namesEN": ["GERB-SDS", "GERB–SDS"],
+      "wikiColor": "#226ABA",
+      "website": "https://gerb.bg",
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/ГЕРБ_–_СДС",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/GERB%E2%80%93SDS",
+      "note": "Coalition of GERB + Union of Democratic Forces. Center-right, EPP. Led by Boyko Borisov. Dominant party since 2009."
+    },
+    {
+      "namesBG": ["ДПС-Ново начало", "ДПС – Ново начало"],
+      "namesEN": ["DPS-New Beginning", "DPS – A New Beginning"],
+      "wikiColor": "#0662AB",
+      "website": "https://dps.bg",
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/DPS_%E2%80%93_New_Beginning",
+      "note": "Peevski faction after 2024 DPS split. Led by Delyan Peevski. Represents Turkish and Roma minorities."
+    },
+    {
+      "namesBG": ["КОАЛИЦИЯ ПРОДЪЛЖАВАМЕ ПРОМЯНАТА – ДЕМОКРАТИЧНА БЪЛГАРИЯ", "ПП-ДБ", "ПП–ДБ"],
+      "namesEN": ["We Continue the Change – Democratic Bulgaria", "PP-DB", "PP–DB"],
+      "wikiColor": "#4200FF",
+      "website": "https://promeni.bg",
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/We_Continue_the_Change_%E2%80%93_Democratic_Bulgaria",
+      "note": "Reform coalition: PP (Petkov/Vasilev) + DB (Da Bulgaria, DSB, Zelenite). Anti-corruption, pro-EU. Formed 2022."
+    },
+    {
+      "namesBG": ["ВЪЗРАЖДАНЕ"],
+      "namesEN": ["Revival", "Vazrazhdane"],
+      "wikiColor": "#C09F62",
+      "website": "https://vazrazhdane.bg",
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Възраждане_(партия)",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Revival_(Bulgarian_political_party)",
+      "note": "Far-right, nationalist, Eurosceptic. Led by Kostadin Kostadinov. Anti-EU, anti-NATO. Gold/black branding."
+    },
+    {
+      "namesBG": ["БСП – ОБЕДИНЕНА ЛЕВИЦА", "БСП – Обединена левица"],
+      "namesEN": ["BSP – United Left", "BSP-United Left"],
+      "wikiColor": "#DB0F28",
+      "website": "https://bsp.bg",
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/BSP_%E2%80%93_United_Left",
+      "note": "BSP-led left coalition for 2024 elections. Successor to 'BSP for Bulgaria' brand."
+    },
+    {
+      "namesBG": ["АЛИАНС ЗА ПРАВА И СВОБОДИ – АПС", "АЛИАНС ЗА ПРАВА И СВОБОДИ"],
+      "namesEN": ["Alliance for Rights and Freedoms", "APS"],
+      "wikiColor": "#6147AA",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Alliance_for_Rights_and_Freedoms",
+      "note": "Dogan faction after 2024 DPS split. Led by Ahmed Dogan. Purple branding to differentiate from DPS blue."
+    },
+    {
+      "namesBG": ["ПП ИМА ТАКЪВ НАРОД", "ИТН"],
+      "namesEN": ["There Is Such a People", "ITN"],
+      "wikiColor": "#4BB9DE",
+      "website": "https://pp-itn.bg",
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Има_такъв_народ_(партия)",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/There_Is_Such_a_People",
+      "note": "Populist party founded by TV host Slavi Trifonov. Named after his show. Peaked in 2021, declined since."
+    },
+    {
+      "namesBG": ["ПП ВЕЛИЧИЕ", "ВЕЛИЧИЕ"],
+      "namesEN": ["Velichie", "Greatness"],
+      "wikiColor": "#AC2225",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Velichie",
+      "note": "Far-right, pro-Russian, nationalist. Founded 2023. Connected to businessman Ivelin Mihaylov. Entered parliament 2024 after recount."
+    },
+    {
+      "namesBG": ["ПП МЕЧ", "МЕЧ"],
+      "namesEN": ["MECH", "Morality, Unity, Honour"],
+      "wikiColor": "#1A2C44",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Morality,_Unity,_Honour",
+      "note": "Far-right party founded Feb 2024 by Radostin Vasilev (ex-ITN, ex-PP). 'Меч' means 'Sword'. Nationalist, Eurosceptic."
+    },
+    {
+      "namesBG": ["СИНЯ БЪЛГАРИЯ"],
+      "namesEN": ["Blue Bulgaria"],
+      "wikiColor": "#0C73AD",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Blue_Bulgaria",
+      "note": "Center-right, pro-EU. Electoral alliance first used in 2024."
+    },
+    {
+      "namesBG": ["БЪЛГАРСКИ ВЪЗХОД"],
+      "namesEN": ["Bulgarian Rise"],
+      "wikiColor": "#197032",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Български_възход",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Bulgarian_Rise",
+      "note": "National conservative party founded May 2022 by Stefan Yanev (ex-caretaker PM). Green branding."
+    }
+  ],
+
+  "tier2_significant_2021_2023": [
+    {
+      "namesBG": ["Продължаваме Промяната", "ПП"],
+      "namesEN": ["We Continue the Change", "PP"],
+      "wikiColor": "#FFC300",
+      "website": "https://promeni.bg",
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Продължаваме_промяната",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/We_Continue_the_Change",
+      "note": "Founded Sept 2021 by Kiril Petkov and Assen Vassilev. Yellow branding. Won Nov 2021 election. Later merged into PP-DB coalition."
+    },
+    {
+      "namesBG": ["ДЕМОКРАТИЧНА БЪЛГАРИЯ – ОБЕДИНЕНИЕ", "ДЕМОКРАТИЧНА БЪЛГАРИЯ", "ДБ"],
+      "namesEN": ["Democratic Bulgaria", "DB"],
+      "wikiColor": "#004A80",
+      "website": "https://demokrati.bg",
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Демократична_България_–_обединение",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Democratic_Bulgaria",
+      "note": "Alliance of Da Bulgaria, DSB, and Zelenite. Dark blue. Pro-EU reform coalition. Later joined PP-DB."
+    },
+    {
+      "namesBG": ["Движение за права и свободи - ДПС", "ДПС", "Движение за права и свободи"],
+      "namesEN": ["Movement for Rights and Freedoms", "DPS"],
+      "wikiColor": "#0066B7",
+      "website": "https://dps.bg",
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Движение_за_права_и_свободи",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Movement_for_Rights_and_Freedoms",
+      "note": "Founded 1990. Represented Turkish/Muslim minorities. Split in 2024 into Peevski (DPS-NN) and Dogan (APS) factions."
+    },
+    {
+      "namesBG": ["БСП ЗА БЪЛГАРИЯ", "БСП за БЪЛГАРИЯ"],
+      "namesEN": ["BSP for Bulgaria"],
+      "wikiColor": "#DB0F28",
+      "website": "https://bsp.bg",
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/BSP_for_Bulgaria",
+      "note": "BSP-led coalition brand used 2017-2023 elections. Same color as BSP standalone."
+    },
+    {
+      "namesBG": ["ИЗПРАВИ СЕ! МУТРИ ВЪН!", "ИЗПРАВИ СЕ БГ!", "ИЗПРАВИ СЕ.БГ"],
+      "namesEN": ["Stand Up.BG! We are coming!", "Stand Up! Thugs Out!", "Stand Up.BG"],
+      "wikiColor": "#50BE5B",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Stand_Up.BG!_We_are_coming!",
+      "note": "Founded by Maya Manolova. Anti-corruption, civic movement. Green branding. Active 2021 elections. Stand Up.BG alone uses #5BA546."
+    },
+    {
+      "namesBG": ["ПП БЪЛГАРСКИ ВЪЗХОД"],
+      "namesEN": ["Bulgarian Rise"],
+      "wikiColor": "#197032",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Български_възход",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Bulgarian_Rise",
+      "note": "Same as Tier 1 entry. Used this exact ballot name in some elections."
+    },
+    {
+      "namesBG": ["БЪЛГАРСКИТЕ ПАТРИОТИ – ВМРО, ВОЛЯ И НФСБ", "БЪЛГАРСКИТЕ ПАТРИОТИ"],
+      "namesEN": ["Bulgarian Patriots"],
+      "wikiColor": "#01193B",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Bulgarian_Patriots",
+      "note": "2023 nationalist coalition of VMRO, Volya, and NFSB. Very dark blue. Successor to United Patriots."
+    }
+  ],
+
+  "tier3_historical_1991_2017": [
+    {
+      "namesBG": ["СДС", "Съюз на демократическите сили"],
+      "namesEN": ["Union of Democratic Forces", "UDF", "SDS"],
+      "wikiColor": "#0A459F",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Съюз_на_демократичните_сили",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Union_of_Democratic_Forces_(Bulgaria)",
+      "note": "Founded 1989. Main anti-communist coalition. Governed 1991-1992, 1997-2001. Deep blue. Later merged into GERB-SDS."
+    },
+    {
+      "namesBG": ["БСП", "Българска социалистическа партия"],
+      "namesEN": ["Bulgarian Socialist Party", "BSP"],
+      "wikiColor": "#D61920",
+      "website": "https://bsp.bg",
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Българска_социалистическа_партия",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Bulgarian_Socialist_Party",
+      "note": "Successor to BKP (communist party). Founded 1990. Center-left to left. Red. Major party through all elections."
+    },
+    {
+      "namesBG": ["ДПС", "Движение за права и свободи"],
+      "namesEN": ["Movement for Rights and Freedoms", "DPS"],
+      "wikiColor": "#0066B7",
+      "website": "https://dps.bg",
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Движение_за_права_и_свободи",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Movement_for_Rights_and_Freedoms",
+      "note": "See Tier 2. Same party in earlier elections under shorter name."
+    },
+    {
+      "namesBG": ["Национално движение Симеон Втори", "НДСВ"],
+      "namesEN": ["National Movement Simeon II", "NMSII", "NDSV"],
+      "wikiColor": "#F5CE42",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Национално_движение_Симеон_Втори",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/National_Movement_Simeon_II",
+      "note": "Founded 2001 by ex-Tsar Simeon Saxe-Coburg-Gotha. Won 2001 election outright. Yellow. Renamed to NDSV later. Declined after 2009."
+    },
+    {
+      "namesBG": ["ПП ГЕРБ", "ПП \"ГЕРБ\"", "ГЕРБ"],
+      "namesEN": ["GERB"],
+      "wikiColor": "#0054A6",
+      "website": "https://gerb.bg",
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/ГЕРБ",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/GERB",
+      "note": "GERB standalone (before SDS coalition). Founded 2006 by Boyko Borisov. Center-right. EPP member. Darker blue than GERB-SDS."
+    },
+    {
+      "namesBG": ["ПП \"Атака\"", "АТАКА"],
+      "namesEN": ["Attack", "Ataka"],
+      "wikiColor": "#344D28",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Атака_(партия)",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Attack_(political_party)",
+      "note": "Far-right nationalist party. Founded 2005 by Volen Siderov. Dark green. Peaked 2005-2013. Part of United Patriots 2017."
+    },
+    {
+      "namesBG": ["ОБЕДИНЕНИ ПАТРИОТИ – НФСБ, АТАКА и ВМРО", "ОБЕДИНЕНИ ПАТРИОТИ"],
+      "namesEN": ["United Patriots"],
+      "wikiColor": "#009B75",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Обединени_патриоти",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/United_Patriots",
+      "note": "2017 coalition of NFSB + Ataka + VMRO-BNM. Teal/green. Junior coalition partner in GERB government 2017-2021."
+    },
+    {
+      "namesBG": ["РЕФОРМАТОРСКИ БЛОК"],
+      "namesEN": ["Reformist Bloc"],
+      "wikiColor": "#2A3A79",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Реформаторски_блок",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Reformist_Bloc",
+      "note": "Center-right coalition (2013-2016): DSB + SDS + others. Dark blue. Supported GERB government 2014-2016."
+    },
+    {
+      "namesBG": ["ОДС", "Обединени Демократични Сили"],
+      "namesEN": ["United Democratic Forces", "UDF coalition"],
+      "wikiColor": "#0C4BAC",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Обединени_демократични_сили",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/United_Democratic_Forces_(Bulgaria)",
+      "note": "SDS-led coalition in 2001 election. Blue. Continuation of UDF brand."
+    },
+    {
+      "namesBG": ["КП \"Коалиция за България\"", "Коалиция за България"],
+      "namesEN": ["Coalition for Bulgaria"],
+      "wikiColor": "#C20009",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Коалиция_за_България",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Coalition_for_Bulgaria",
+      "note": "BSP-led coalition used 2001-2014. Darker red than BSP standalone. Won 2005 election."
+    },
+    {
+      "namesBG": ["ВМРО – БЪЛГАРСКО НАЦИОНАЛНО ДВИЖЕНИЕ", "ВМРО-БНД", "ВМРО"],
+      "namesEN": ["IMRO – Bulgarian National Movement", "VMRO-BNM", "VMRO"],
+      "wikiColor": "#000000",
+      "website": "https://vmro.bg",
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/ВМРО_–_Българско_национално_движение",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/VMRO_%E2%80%93_Bulgarian_National_Movement",
+      "note": "Nationalist, conservative. Founded 1999 by Krasimir Karakachanov. Black. Part of United Patriots and Bulgarian Patriots coalitions."
+    },
+    {
+      "namesBG": ["ПП \"Ред, Законност и Справедливост\"", "РЗС"],
+      "namesEN": ["Order, Law and Justice", "RZS"],
+      "wikiColor": "#F66E22",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Ред,_законност_и_справедливост",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Order,_Law_and_Justice",
+      "note": "Center-right populist. Founded 2005 by Yane Yanev. Orange. In parliament 2009-2013."
+    },
+    {
+      "namesBG": ["НДСВ"],
+      "namesEN": ["NDSV", "NMSII"],
+      "wikiColor": "#F5CE42",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Национално_движение_Симеон_Втори",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/National_Movement_Simeon_II",
+      "note": "Same party as Национално движение Симеон Втори, later elections used the НДСВ abbreviation."
+    },
+    {
+      "namesBG": ["Демократи за Силна България", "ДСБ"],
+      "namesEN": ["Democrats for a Strong Bulgaria", "DSB"],
+      "wikiColor": "#02528A",
+      "website": "https://dsb.bg",
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Демократи_за_силна_България",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Democrats_for_a_Strong_Bulgaria",
+      "note": "Center-right, pro-EU. Founded 2004 by Ivan Kostov (ex-PM). Later joined Democratic Bulgaria coalition."
+    },
+    {
+      "namesBG": ["НФСБ", "Национален фронт за спасение на България"],
+      "namesEN": ["National Front for the Salvation of Bulgaria", "NFSB"],
+      "wikiColor": "#1C4482",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Национален_фронт_за_спасение_на_България",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/National_Front_for_the_Salvation_of_Bulgaria",
+      "note": "Nationalist, anti-immigration. Founded 2011 by Valeri Simeonov. Dark blue. Part of United Patriots."
+    },
+    {
+      "namesBG": ["АБВ", "Алтернатива за българско възраждане"],
+      "namesEN": ["ABV", "Alternative for Bulgarian Revival"],
+      "wikiColor": "#6A013A",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/АБВ_(партия)",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/ABV_(political_party)",
+      "note": "Social democratic. Founded 2014 by Georgi Parvanov (ex-president). Dark magenta. Brief parliamentary presence."
+    },
+    {
+      "namesBG": ["Воля"],
+      "namesEN": ["Volya", "Volya Movement"],
+      "wikiColor": "#00718F",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Воля_(партия)",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Volya_Movement",
+      "note": "Populist. Founded 2007 by Veselin Mareshki. Teal. In parliament 2017-2021. Later joined Bulgarian Patriots."
+    },
+    {
+      "namesBG": ["БЗНС", "Български земеделски народен съюз"],
+      "namesEN": ["Bulgarian Agrarian National Union", "BZNS", "BANU"],
+      "wikiColor": "#FA8C1D",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Български_земеделски_народен_съюз",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Bulgarian_Agrarian_National_Union",
+      "note": "Agrarian party, one of Bulgaria's oldest. Orange. Various factions and splits over the decades. Often coalition partner."
+    },
+    {
+      "namesBG": ["Обединение ДОСТ", "ДОСТ"],
+      "namesEN": ["Democrats for Responsibility, Solidarity and Tolerance", "DOST"],
+      "wikiColor": "#1A70B8",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/ДОСТ",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Democrats_for_Responsibility,_Solidarity_and_Tolerance",
+      "note": "DPS splinter party. Founded 2016 by Lyutvi Mestan (expelled DPS leader). Blue. Briefly in 2017 election."
+    },
+    {
+      "namesBG": ["Евролевица", "Българска Евролевица"],
+      "namesEN": ["Bulgarian Euro-Left", "Euroleft"],
+      "wikiColor": "#009966",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Българска_евролевица",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Bulgarian_Euro-Left",
+      "note": "Social democratic BSP splinter. Founded 1997. Green. In parliament 1997-2001. Declined after."
+    },
+    {
+      "namesBG": ["Български Бизнес Блок", "БББ"],
+      "namesEN": ["Bulgarian Business Bloc", "BBB"],
+      "wikiColor": "#6C5B3F",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Български_бизнес_блок",
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Bulgarian_Business_Bloc",
+      "note": "Populist, founded 1990 by Georgi Ganchev. Brown. In parliament 1991-2001. Known for flamboyant leader."
+    }
+  ],
+
+  "tier4_national_smaller": [
+    {
+      "namesBG": ["Обединение за национално спасение"],
+      "namesEN": ["Union for National Salvation"],
+      "wikiColor": "#0066B7",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Обединение_за_национално_спасение",
+      "wikipediaEN": null,
+      "note": "1997 DPS-led coalition with BZNS-Nikola Petkov, Green Party. 19 seats. Using DPS blue as dominant partner."
+    },
+    {
+      "namesBG": ["КП БЪЛГАРИЯ БЕЗ ЦЕНЗУРА", "БЪЛГАРИЯ БЕЗ ЦЕНЗУРА"],
+      "namesEN": ["Bulgaria Without Censorship", "Reload Bulgaria"],
+      "wikiColor": "#2F7A2F",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Reload_Bulgaria",
+      "note": "Right-wing populist. Founded 2014 by Nikolay Barekov. White/green/red colors. Later renamed Reload Bulgaria."
+    },
+    {
+      "namesBG": ["КП ДВИЖЕНИЕ ДА БЪЛГАРИЯ", "ДА БЪЛГАРИЯ", "Да, България!"],
+      "namesEN": ["Yes, Bulgaria!", "Da Bulgaria"],
+      "wikiColor": "#50AF50",
+      "website": "https://dabulgaria.bg",
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Yes,_Bulgaria!",
+      "note": "Green/purple. Founded 2017 by Hristo Ivanov. Part of Democratic Bulgaria, later PP-DB."
+    },
+    {
+      "namesBG": ["БЪЛГАРСКА НОВА ДЕМОКРАЦИЯ"],
+      "namesEN": ["Bulgarian New Democracy"],
+      "wikiColor": "#DAA520",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Bulgarian_New_Democracy",
+      "note": "Centre-right liberal. 2007 NDSV splinter. Yellow/amber for liberal."
+    },
+    {
+      "namesBG": ["Българска комунистическа партия", "БКП"],
+      "namesEN": ["Bulgarian Communist Party"],
+      "wikiColor": "#8B0000",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Bulgarian_Communist_Party_(modern)",
+      "note": "Modern BKP. Far-left, Marxist-Leninist. Dark red."
+    },
+    {
+      "namesBG": ["Българска национално-радикална партия", "БНРП", "Б.нац.радикална п-я"],
+      "namesEN": ["Bulgarian National Radical Party", "BNRP"],
+      "wikiColor": "#2F4F4F",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Българска_национално-радикална_партия",
+      "wikipediaEN": null,
+      "note": "Far-right nationalist. Dark."
+    },
+    {
+      "namesBG": ["Българска Социалдемокрация", "БЪЛГАРСКА СОЦИАЛДЕМОКРАЦИЯ – ЕВРОЛЕВИЦА"],
+      "namesEN": ["Bulgarian Social Democracy", "Bulgarian Social Democracy – EuroLeft"],
+      "wikiColor": "#CC3333",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Bulgarian_Social_Democracy_%E2%80%93_EuroLeft",
+      "note": "Pro-Western social-democratic. 1997 BSP splinter. Red."
+    },
+    {
+      "namesBG": ["ЕДИННА НАРОДНА ПАРТИЯ"],
+      "namesEN": ["United People's Party"],
+      "wikiColor": "#4169E1",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/United_People%27s_Party_(Bulgaria)",
+      "note": "Centre-right, liberal, pro-European. Founded 2007, dissolved 2023. Blue."
+    },
+    {
+      "namesBG": ["ЕВРОПЕЙСКА СИГУРНОСТ И ИНТЕГРАЦИЯ"],
+      "namesEN": ["European Security and Integration"],
+      "wikiColor": "#CC0000",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/European_Security_and_Integration",
+      "note": "Centre-left, social democratic. Roma ethnic party. Part of Coalition for Bulgaria. Red."
+    },
+    {
+      "namesBG": ["НОВА СИЛА"],
+      "namesEN": ["New Force"],
+      "wikiColor": "#2F4F4F",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Нова_сила_(партия_в_България)",
+      "wikipediaEN": null,
+      "note": "Nationalist. Founded 2009 by ex-Ataka deputy. Dark."
+    },
+    {
+      "namesBG": ["СОЛИДАРНА БЪЛГАРИЯ"],
+      "namesEN": ["Solidary Bulgaria", "Solidarity Bulgaria"],
+      "wikiColor": "#CC0000",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Solidary_Bulgaria",
+      "note": "Left-wing coalition led by Vanya Grigorova. Social democracy, democratic socialism. Red."
+    },
+    {
+      "namesBG": ["ГРАЖДАНСКА ПЛАТФОРМА БЪЛГАРСКО ЛЯТО"],
+      "namesEN": ["Civic Platform Bulgarian Summer", "Bulgarian Summer"],
+      "wikiColor": "#3A7BC8",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Bulgarian_Summer",
+      "note": "Centrist, direct democracy. Founded 2021 from 2020 protests. Blue/orange branding."
+    },
+    {
+      "namesBG": ["БНО", "Българско национално обединение"],
+      "namesEN": ["Bulgarian National Unification", "BNO"],
+      "wikiColor": "#2B4F8A",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Bulgarian_National_Unification",
+      "note": "Right-wing, nationalist, Eurosceptic. Led by Georgi Georgiev-Goti. Blue."
+    },
+    {
+      "namesBG": ["СОЦИАЛДЕМОКРАТИЧЕСКА ПАРТИЯ", "СДП"],
+      "namesEN": ["Bulgarian Social Democratic Party", "SDP"],
+      "wikiColor": "#CC0000",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Bulgarian_Social_Democratic_Party",
+      "note": "Social democratic. Founded 1989. Successor to historical BSDWP. Red."
+    },
+    {
+      "namesBG": ["Движение 21"],
+      "namesEN": ["Movement 21"],
+      "wikiColor": "#800080",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Movement_21",
+      "note": "Centre-left, social democratic. Led by Tatyana Doncheva. Purple/white. Part of The Left coalition."
+    },
+    {
+      "namesBG": ["Политически клуб „Екогласност\"", "ПОЛИТИЧЕСКИ КЛУБ \"ЕКОГЛАСНОСТ\"", "Екогласност"],
+      "namesEN": ["Ecoglasnost"],
+      "wikiColor": "#2E8B57",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Ecoglasnost",
+      "note": "Green politics, environmentalism. Founded 1989, key role in fall of communism. Green."
+    },
+    {
+      "namesBG": ["КОД", "Консервативно Обединение на Десницата"],
+      "namesEN": ["Conservative Union of the Right", "KOD"],
+      "wikiColor": "#4169E1",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/Conservative_Union_of_the_Right",
+      "note": "Right-wing, national conservative, pro-European. Founded 2019 by Petar Moskov. Blue."
+    },
+    {
+      "namesBG": ["ЛЕВИЦАТА!", "ЛЕВИЦАТА И ЗЕЛЕНА ПАРТИЯ"],
+      "namesEN": ["The Left!"],
+      "wikiColor": "#B22222",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": "https://en.wikipedia.org/wiki/The_Left_(Bulgaria)",
+      "note": "Centre-left to left-wing coalition (2023). Included ABV, Movement 21, BZNS. Firebrick red."
+    },
+    {
+      "namesBG": ["РЕПУБЛИКА БГ", "РЕПУБЛИКАНЦИ ЗА БЪЛГАРИЯ"],
+      "namesEN": ["Republicans for Bulgaria", "Republic BG"],
+      "wikiColor": "#1A3D7C",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "Centre-right. Possibly Tsvetanov's GERB splinter. Dark blue."
+    },
+    {
+      "namesBG": ["Политическа партия МИР", "МИР"],
+      "namesEN": ["MIR", "Morality Initiative Patriotism"],
+      "wikiColor": "#708090",
+      "website": null,
+      "wikipediaBG": "https://bg.wikipedia.org/wiki/Политическа_партия_МИР",
+      "wikipediaEN": null,
+      "note": "Founded 2018 by Simeon Slavchev. Centrist civic party. Grey-blue."
+    },
+    {
+      "namesBG": ["ПРЯКА ДЕМОКРАЦИЯ"],
+      "namesEN": ["Direct Democracy"],
+      "wikiColor": "#708090",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "Direct democracy movement. No clear left-right position. Grey-blue."
+    },
+    {
+      "namesBG": ["СИНЬО ЕДИНСТВО"],
+      "namesEN": ["Blue Unity"],
+      "wikiColor": "#0A459F",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "Centre-right. Founded 2012 by Nadezhda Neynsky. Dissolved 2018. Blue is in the name."
+    },
+    {
+      "namesBG": ["ЦЕНТЪР"],
+      "namesEN": ["Center"],
+      "wikiColor": "#708090",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "Centrist party. Grey-blue."
+    },
+    {
+      "namesBG": ["КП ДЕСНИТЕ"],
+      "namesEN": ["The Right"],
+      "wikiColor": "#4169E1",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "Right-wing coalition. Blue."
+    },
+    {
+      "namesBG": ["НАЦИОНАЛНО ОБЕДИНЕНИЕ НА ДЕСНИЦАТА"],
+      "namesEN": ["National Unification of the Right"],
+      "wikiColor": "#4169E1",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "Right-wing coalition. Blue."
+    },
+    {
+      "namesBG": ["ЛЯВ СЪЮЗ ЗА ЧИСТА И СВЯТА РЕПУБЛИКА"],
+      "namesEN": ["Left Union for Clean and Holy Republic"],
+      "wikiColor": "#CC0000",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "Left-wing. Red."
+    },
+    {
+      "namesBG": ["ДВИЖЕНИЕ НА НЕПАРТИЙНИТЕ КАНДИДАТИ"],
+      "namesEN": ["Movement of Non-Party Candidates"],
+      "wikiColor": "#808080",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "Non-partisan movement. Neutral grey."
+    },
+    {
+      "namesBG": ["БЪДЕЩЕ ЗА РОДИНАТА"],
+      "namesEN": ["Future for the Motherland"],
+      "wikiColor": "#808080",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "Minor party. Unclear ideology. Grey."
+    },
+    {
+      "namesBG": ["ДАР", "Демократична алтернатива за републиката"],
+      "namesEN": ["DAR", "Democratic Alternative for the Republic"],
+      "wikiColor": "#CC0000",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "1990s. Led by Petar Dertliev (BSDP leader). Social-democratic. Red."
+    },
+    {
+      "namesBG": ["Християндемократичен съюз"],
+      "namesEN": ["Christian Democratic Union"],
+      "wikiColor": "#4169E1",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "Christian democratic. Part of SDS/UDF umbrella. Blue."
+    },
+    {
+      "namesBG": ["Християндемократическа партия на България"],
+      "namesEN": ["Christian Democratic Party of Bulgaria"],
+      "wikiColor": "#4169E1",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "Christian democratic. Part of Reformist Bloc. Blue."
+    },
+    {
+      "namesBG": ["Демократическа партия на справедливостта"],
+      "namesEN": ["Democratic Party of Justice"],
+      "wikiColor": "#808080",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "Minor party. Unclear ideology. Grey."
+    },
+    {
+      "namesBG": ["Либерално-демократическа партия - център"],
+      "namesEN": ["Liberal Democratic Party - Center"],
+      "wikiColor": "#DAA520",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "Liberal-democratic centrist. Yellow/amber."
+    },
+    {
+      "namesBG": ["Партия \"Свободна България\"", "Свободна България"],
+      "namesEN": ["Free Bulgaria Party"],
+      "wikiColor": "#708090",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "No Wikipedia page. Unclear ideology. Grey-blue."
+    },
+    {
+      "namesBG": ["ОБЩЕСТВО ЗА НОВА БЪЛГАРИЯ"],
+      "namesEN": ["Society for New Bulgaria"],
+      "wikiColor": "#808080",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "Minor party. Unclear ideology. Grey."
+    }
+  ],
+
+  "tier5_local_regional": [
+    {
+      "namesBG": ["ДВИЖЕНИЕ НАШИЯТ ГРАД"],
+      "namesEN": ["Movement Our City"],
+      "wikiColor": "#A0A0A0",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "Local civic movement. Neutral grey."
+    },
+    {
+      "namesBG": ["СЪЮЗ ЗА ПЛОВДИВ"],
+      "namesEN": ["Union for Plovdiv"],
+      "wikiColor": "#A0A0A0",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "Local party for Plovdiv. Part of New Republic coalition with DSB."
+    },
+    {
+      "namesBG": ["СП Български път"],
+      "namesEN": ["SP Bulgarian Way"],
+      "wikiColor": "#A0A0A0",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "Local/regional party."
+    },
+    {
+      "namesBG": ["КОАЛИЦИЯ КАУЗА ПЛОВДИВ"],
+      "namesEN": ["Coalition Cause Plovdiv"],
+      "wikiColor": "#A0A0A0",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "Local coalition in Plovdiv."
+    },
+    {
+      "namesBG": ["Политическа партия НОВИТЕ ЛИДЕРИ", "НОВИТЕ ЛИДЕРИ"],
+      "namesEN": ["New Leaders"],
+      "wikiColor": "#808080",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "Minor party. Unclear ideology. Grey."
+    },
+    {
+      "namesBG": ["ЗАЕДНО ЗА СИЛНА ОБЩИНА"],
+      "namesEN": ["Together for Strong Municipality"],
+      "wikiColor": "#A0A0A0",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "Local civic movement."
+    },
+    {
+      "namesBG": ["Граждани за Общината"],
+      "namesEN": ["Citizens for the Municipality"],
+      "wikiColor": "#A0A0A0",
+      "website": null,
+      "wikipediaBG": null,
+      "wikipediaEN": null,
+      "note": "Local civic initiative."
+    }
+  ],
+
+  "_colorIndex": {
+    "GERB (standalone)":            "#0054A6",
+    "GERB-SDS":                     "#226ABA",
+    "DPS (united)":                 "#0066B7",
+    "DPS-New Beginning (Peevski)":  "#0662AB",
+    "Alliance for Rights (Dogan)":  "#6147AA",
+    "PP (standalone)":              "#FFC300",
+    "PP-DB":                        "#4200FF",
+    "DB (standalone)":              "#004A80",
+    "Revival/Vazrazhdane":          "#C09F62",
+    "BSP (standalone)":             "#D61920",
+    "BSP for Bulgaria":             "#DB0F28",
+    "BSP United Left":              "#DB0F28",
+    "Coalition for Bulgaria":       "#C20009",
+    "ITN":                          "#4BB9DE",
+    "Velichie":                     "#AC2225",
+    "MECH":                         "#1A2C44",
+    "Blue Bulgaria":                "#0C73AD",
+    "Bulgarian Rise":               "#197032",
+    "SDS/UDF":                      "#0A459F",
+    "United Democratic Forces":     "#0C4BAC",
+    "NDSV/NMSII":                   "#F5CE42",
+    "Ataka":                        "#344D28",
+    "United Patriots":              "#009B75",
+    "Bulgarian Patriots":           "#01193B",
+    "Reformist Bloc":               "#2A3A79",
+    "VMRO-BNM":                     "#000000",
+    "RZS":                          "#F66E22",
+    "DSB":                          "#02528A",
+    "NFSB":                         "#1C4482",
+    "ABV":                          "#6A013A",
+    "Volya":                        "#00718F",
+    "BZNS":                         "#FA8C1D",
+    "DOST":                         "#1A70B8",
+    "Euro-Left":                    "#009966",
+    "BBB":                          "#6C5B3F",
+    "Stand Up.BG":                  "#5BA546",
+    "Stand Up! Thugs Out!":         "#50BE5B",
+    "Union for National Salvation": "#0066B7",
+    "Bulgaria Without Censorship":  "#2F7A2F",
+    "Yes Bulgaria / Da Bulgaria":   "#50AF50",
+    "Bulgarian New Democracy":      "#DAA520",
+    "BKP (modern)":                 "#8B0000",
+    "BNRP":                         "#2F4F4F",
+    "Bulgarian Social Democracy":   "#CC3333",
+    "United People's Party":        "#4169E1",
+    "European Security & Integ.":   "#CC0000",
+    "New Force":                    "#2F4F4F",
+    "Solidary Bulgaria":            "#CC0000",
+    "Bulgarian Summer":             "#3A7BC8",
+    "BNO":                          "#2B4F8A",
+    "SDP":                          "#CC0000",
+    "Movement 21":                  "#800080",
+    "Ecoglasnost":                  "#2E8B57",
+    "KOD":                          "#4169E1",
+    "The Left!":                    "#B22222",
+    "Republic BG":                  "#1A3D7C",
+    "MIR":                          "#708090",
+    "Direct Democracy":             "#708090",
+    "Blue Unity":                   "#0A459F",
+    "DAR":                          "#CC0000",
+    "Christian Democrats":          "#4169E1",
+    "Non-Party Candidates":         "#808080",
+    "Local/Regional parties":       "#A0A0A0"
+  }
+}

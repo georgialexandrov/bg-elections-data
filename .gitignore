@@ -7,9 +7,8 @@ elections_debug.db
 # Internal build tooling, raw data, and planning docs
 .internal/
 
-# Extracted CIK data directories (regenerated from zips via extract.sh)
-# Zips are kept in git so users can build without downloading from CIK
-data/cik-exports/*/
+# CIK data exports (zips + extracted dirs) — available from GitHub Releases
+data/cik-exports/
 
 # Obsolete scripts (kept in parent hackathon dir)
 data/parse.py
