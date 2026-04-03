@@ -1,0 +1,35 @@
+# Database — distributed via GitHub Releases (too large for git)
+elections.db
+elections.db-shm
+elections.db-wal
+elections_debug.db
+
+# Internal build tooling, raw data, and planning docs
+.internal/
+
+# Extracted CIK data directories (regenerated from zips via extract.sh)
+# Zips are kept in git so users can build without downloading from CIK
+data/cik-exports/*/
+
+# Obsolete scripts (kept in parent hackathon dir)
+data/parse.py
+data/score_sections.py
+data/geocode_locations.py
+
+# Tool configs
+.claude/
+.codex/
+
+# Python
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+dist/
+
+# OS
+.DS_Store
+
+# Temp parser DBs
+/tmp/elections_*.db

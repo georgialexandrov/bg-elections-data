@@ -1,0 +1,37 @@
+schema: spec-driven
+
+context: |
+  Bulgarian election data analysis platform — civic tech, open source.
+
+  Stack:
+    - Data: Python 3, SQLite (elections.db), pandas
+    - Frontend: TypeScript, Vite, React, MapLibre GL
+    - API: Express + better-sqlite3 (dev), static JSON on R2 (prod)
+    - Infra: GitHub Pages / Cloudflare Workers
+
+  Data model:
+    - elections: id, slug, name, type, date, round
+    - sections: election_id, section_code, location_id (polling station)
+    - protocols: election_id, section_code, registered/actual voters, invalid/null votes
+    - votes: election_id, section_code, party_number, total/paper/machine
+    - parties, candidates, preferences (per-candidate votes)
+    - Geography: riks, districts, municipalities, local_regions, kmetstva
+
+  Election types: parliament, president, european, local_council,
+    local_mayor, local_mayor_kmetstvo, local_mayor_neighbourhood
+
+  Current dataset: 18 elections from 2021-2024, validated against CIK.
+  Build pipeline in .internal/ (gitignored). Public repo ships pre-built DB.
+
+  Conventions:
+    - Frontend: kebab-case files, PascalCase components, hooks for logic
+    - Data: parsers per election in .internal/parsers/, one module per CIK archive
+    - Validation: validate.py (arithmetic), validate_cik.py (per-party totals)
+
+rules:
+  proposal:
+    - Keep proposals under 500 words
+    - Always include impact on elections.db schema if applicable
+  tasks:
+    - Each task should be completable in one session
+    - Data tasks must include validation step
