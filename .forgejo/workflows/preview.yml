@@ -14,20 +14,22 @@ jobs:
   test:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    container:
-      image: node:22-slim
-      options: -v /home/sova/data/elections.db:/elections.db:ro
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
 
       - name: Install pnpm
         run: npm install -g pnpm
 
+      - name: Copy database from host
+        run: docker cp forgejo-runner:${{ env.DB_HOST_PATH }} elections.db 2>/dev/null || cp ${{ env.DB_HOST_PATH }} elections.db 2>/dev/null || echo "DB not available, tests may skip"
+
       - name: Install dependencies
         run: cd server && pnpm install
-
-      - name: Link database
-        run: cp /elections.db elections.db
 
       - name: Run tests
         run: cd server && pnpm vitest run
