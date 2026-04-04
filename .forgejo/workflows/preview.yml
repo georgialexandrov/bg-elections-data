@@ -10,8 +10,29 @@ env:
   DB_HOST_PATH: /home/sova/data/elections.db
 
 jobs:
+  test:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Link database
+        run: ln -s ${{ env.DB_HOST_PATH }} elections.db
+
+      - name: Run tests
+        run: npm test -w server
+
   deploy:
     if: github.event_name == 'push'
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,9 +61,6 @@ jobs:
             -e PORT=3000 \
             --network proxy-net \
             ${{ steps.slug.outputs.container }}
-
-      - name: Run tests
-        run: docker exec ${{ steps.slug.outputs.container }} npm test
 
       - name: Summary
         run: |
