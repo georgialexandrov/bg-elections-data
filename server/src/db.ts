@@ -14,7 +14,6 @@ function getDb(): DatabaseType {
       );
     }
     _db = new Database(DB_PATH, { readonly: true });
-    _db.pragma("journal_mode = WAL");
   }
   return _db;
 }
