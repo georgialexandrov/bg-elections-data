@@ -11,15 +11,202 @@ describe("GET /api/elections", () => {
     expect(body.length).toBeGreaterThan(0);
   });
 
-  it("each election has id, name, date, and type", async () => {
+  it("Народно събрание 27.10.2024 (id=1) has id, name, date, and type", async () => {
     const res = await app.request("/api/elections");
     const body = await res.json();
-    const first = body[0];
+    const election = body.find((e: any) => e.id === 1);
+    expect(election).toBeDefined();
+    expect(election).toHaveProperty("id");
+    expect(election).toHaveProperty("name");
+    expect(election).toHaveProperty("date");
+    expect(election).toHaveProperty("type");
+  });
 
-    expect(first).toHaveProperty("id");
-    expect(first).toHaveProperty("name");
-    expect(first).toHaveProperty("date");
-    expect(first).toHaveProperty("type");
+  it("Народно събрание 27.10.2024 КС (id=2) has id, name, date, and type", async () => {
+    const res = await app.request("/api/elections");
+    const body = await res.json();
+    const election = body.find((e: any) => e.id === 2);
+    expect(election).toBeDefined();
+    expect(election).toHaveProperty("id");
+    expect(election).toHaveProperty("name");
+    expect(election).toHaveProperty("date");
+    expect(election).toHaveProperty("type");
+  });
+
+  it("Народно събрание 09.06.2024 (id=3) has id, name, date, and type", async () => {
+    const res = await app.request("/api/elections");
+    const body = await res.json();
+    const election = body.find((e: any) => e.id === 3);
+    expect(election).toBeDefined();
+    expect(election).toHaveProperty("id");
+    expect(election).toHaveProperty("name");
+    expect(election).toHaveProperty("date");
+    expect(election).toHaveProperty("type");
+  });
+
+  it("Европейски парламент 09.06.2024 (id=4) has id, name, date, and type", async () => {
+    const res = await app.request("/api/elections");
+    const body = await res.json();
+    const election = body.find((e: any) => e.id === 4);
+    expect(election).toBeDefined();
+    expect(election).toHaveProperty("id");
+    expect(election).toHaveProperty("name");
+    expect(election).toHaveProperty("date");
+    expect(election).toHaveProperty("type");
+  });
+
+  it("Общ.съветници 29.10.2023 (id=5) has id, name, date, and type", async () => {
+    const res = await app.request("/api/elections");
+    const body = await res.json();
+    const election = body.find((e: any) => e.id === 5);
+    expect(election).toBeDefined();
+    expect(election).toHaveProperty("id");
+    expect(election).toHaveProperty("name");
+    expect(election).toHaveProperty("date");
+    expect(election).toHaveProperty("type");
+  });
+
+  it("Кмет 29.10.2023 (id=6) has id, name, date, and type", async () => {
+    const res = await app.request("/api/elections");
+    const body = await res.json();
+    const election = body.find((e: any) => e.id === 6);
+    expect(election).toBeDefined();
+    expect(election).toHaveProperty("id");
+    expect(election).toHaveProperty("name");
+    expect(election).toHaveProperty("date");
+    expect(election).toHaveProperty("type");
+  });
+
+  it("Кмет кметство 29.10.2023 (id=7) has id, name, date, and type", async () => {
+    const res = await app.request("/api/elections");
+    const body = await res.json();
+    const election = body.find((e: any) => e.id === 7);
+    expect(election).toBeDefined();
+    expect(election).toHaveProperty("id");
+    expect(election).toHaveProperty("name");
+    expect(election).toHaveProperty("date");
+    expect(election).toHaveProperty("type");
+  });
+
+  it("Кмет район 29.10.2023 (id=8) has id, name, date, and type", async () => {
+    const res = await app.request("/api/elections");
+    const body = await res.json();
+    const election = body.find((e: any) => e.id === 8);
+    expect(election).toBeDefined();
+    expect(election).toHaveProperty("id");
+    expect(election).toHaveProperty("name");
+    expect(election).toHaveProperty("date");
+    expect(election).toHaveProperty("type");
+  });
+
+  it("Кмет 05.11.2023 (id=9) has id, name, date, and type", async () => {
+    const res = await app.request("/api/elections");
+    const body = await res.json();
+    const election = body.find((e: any) => e.id === 9);
+    expect(election).toBeDefined();
+    expect(election).toHaveProperty("id");
+    expect(election).toHaveProperty("name");
+    expect(election).toHaveProperty("date");
+    expect(election).toHaveProperty("type");
+  });
+
+  it("Кмет кметство 05.11.2023 (id=10) has id, name, date, and type", async () => {
+    const res = await app.request("/api/elections");
+    const body = await res.json();
+    const election = body.find((e: any) => e.id === 10);
+    expect(election).toBeDefined();
+    expect(election).toHaveProperty("id");
+    expect(election).toHaveProperty("name");
+    expect(election).toHaveProperty("date");
+    expect(election).toHaveProperty("type");
+  });
+
+  it("Кмет район 05.11.2023 (id=11) has id, name, date, and type", async () => {
+    const res = await app.request("/api/elections");
+    const body = await res.json();
+    const election = body.find((e: any) => e.id === 11);
+    expect(election).toBeDefined();
+    expect(election).toHaveProperty("id");
+    expect(election).toHaveProperty("name");
+    expect(election).toHaveProperty("date");
+    expect(election).toHaveProperty("type");
+  });
+
+  it("Народно събрание 02.04.2023 (id=12) has id, name, date, and type", async () => {
+    const res = await app.request("/api/elections");
+    const body = await res.json();
+    const election = body.find((e: any) => e.id === 12);
+    expect(election).toBeDefined();
+    expect(election).toHaveProperty("id");
+    expect(election).toHaveProperty("name");
+    expect(election).toHaveProperty("date");
+    expect(election).toHaveProperty("type");
+  });
+
+  it("Народно събрание 02.10.2022 (id=13) has id, name, date, and type", async () => {
+    const res = await app.request("/api/elections");
+    const body = await res.json();
+    const election = body.find((e: any) => e.id === 13);
+    expect(election).toBeDefined();
+    expect(election).toHaveProperty("id");
+    expect(election).toHaveProperty("name");
+    expect(election).toHaveProperty("date");
+    expect(election).toHaveProperty("type");
+  });
+
+  it("Народно събрание 14.11.2021 (id=14) has id, name, date, and type", async () => {
+    const res = await app.request("/api/elections");
+    const body = await res.json();
+    const election = body.find((e: any) => e.id === 14);
+    expect(election).toBeDefined();
+    expect(election).toHaveProperty("id");
+    expect(election).toHaveProperty("name");
+    expect(election).toHaveProperty("date");
+    expect(election).toHaveProperty("type");
+  });
+
+  it("Президент 14.11.2021 (id=15) has id, name, date, and type", async () => {
+    const res = await app.request("/api/elections");
+    const body = await res.json();
+    const election = body.find((e: any) => e.id === 15);
+    expect(election).toBeDefined();
+    expect(election).toHaveProperty("id");
+    expect(election).toHaveProperty("name");
+    expect(election).toHaveProperty("date");
+    expect(election).toHaveProperty("type");
+  });
+
+  it("Президент 21.11.2021 (id=16) has id, name, date, and type", async () => {
+    const res = await app.request("/api/elections");
+    const body = await res.json();
+    const election = body.find((e: any) => e.id === 16);
+    expect(election).toBeDefined();
+    expect(election).toHaveProperty("id");
+    expect(election).toHaveProperty("name");
+    expect(election).toHaveProperty("date");
+    expect(election).toHaveProperty("type");
+  });
+
+  it("Народно събрание 11.07.2021 (id=17) has id, name, date, and type", async () => {
+    const res = await app.request("/api/elections");
+    const body = await res.json();
+    const election = body.find((e: any) => e.id === 17);
+    expect(election).toBeDefined();
+    expect(election).toHaveProperty("id");
+    expect(election).toHaveProperty("name");
+    expect(election).toHaveProperty("date");
+    expect(election).toHaveProperty("type");
+  });
+
+  it("Народно събрание 04.04.2021 (id=18) has id, name, date, and type", async () => {
+    const res = await app.request("/api/elections");
+    const body = await res.json();
+    const election = body.find((e: any) => e.id === 18);
+    expect(election).toBeDefined();
+    expect(election).toHaveProperty("id");
+    expect(election).toHaveProperty("name");
+    expect(election).toHaveProperty("date");
+    expect(election).toHaveProperty("type");
   });
 });
 
