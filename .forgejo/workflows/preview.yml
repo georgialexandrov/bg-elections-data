@@ -20,14 +20,13 @@ jobs:
         id: slug
         run: |
           BRANCH="${GITHUB_REF_NAME}"
-          SLUG=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]' | sed 's/-\+/-/g; s/^-//; s/-$//')
+          SLUG=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]' | sed 's/-\+/-/g; s/^-//; s/-$//' | cut -c1-40)
           echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
-          echo "image=preview-${PROJECT}-${SLUG}" >> "$GITHUB_OUTPUT"
           echo "container=preview-${PROJECT}-${SLUG}" >> "$GITHUB_OUTPUT"
           echo "host=preview-${PROJECT}-${SLUG}.home.georgi.alexandrov.dev" >> "$GITHUB_OUTPUT"
 
       - name: Build image
-        run: docker build -t ${{ steps.slug.outputs.image }} .
+        run: docker build -t ${{ steps.slug.outputs.container }} .
 
       - name: Stop old container
         run: docker stop ${{ steps.slug.outputs.container }} 2>/dev/null || true && docker rm ${{ steps.slug.outputs.container }} 2>/dev/null || true
@@ -40,7 +39,7 @@ jobs:
             -v ${{ env.DB_HOST_PATH }}:/app/elections.db:ro \
             -e PORT=3000 \
             --network proxy-net \
-            ${{ steps.slug.outputs.image }}
+            ${{ steps.slug.outputs.container }}
 
       - name: Run tests
         run: docker exec ${{ steps.slug.outputs.container }} npm test
@@ -59,12 +58,11 @@ jobs:
         id: slug
         run: |
           BRANCH="${{ github.event.ref }}"
-          SLUG=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]' | sed 's/-\+/-/g; s/^-//; s/-$//')
+          SLUG=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]' | sed 's/-\+/-/g; s/^-//; s/-$//' | cut -c1-40)
           echo "container=preview-${PROJECT}-${SLUG}" >> "$GITHUB_OUTPUT"
-          echo "image=preview-${PROJECT}-${SLUG}" >> "$GITHUB_OUTPUT"
 
       - name: Stop and remove container
         run: docker stop ${{ steps.slug.outputs.container }} 2>/dev/null || true && docker rm ${{ steps.slug.outputs.container }} 2>/dev/null || true
 
       - name: Remove image
-        run: docker rmi ${{ steps.slug.outputs.image }} 2>/dev/null || true
+        run: docker rmi ${{ steps.slug.outputs.container }} 2>/dev/null || true
