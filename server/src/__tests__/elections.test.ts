@@ -429,4 +429,54 @@ describe("GET /api/elections/:id/results", () => {
     const body = await res.json();
     expect(body).toHaveProperty("error");
   });
+
+  it("no-filter request returns same national totals (backward compat)", async () => {
+    const res = await app.request("/api/elections/1/results");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.results.length).toBeGreaterThan(0);
+    // Ensure results still have expected shape
+    const r = body.results[0];
+    expect(typeof r.party_id).toBe("number");
+    expect(typeof r.party_name).toBe("string");
+    expect(typeof r.total_votes).toBe("number");
+  });
+
+  it("filtering by district returns a subset of national totals", async () => {
+    // Get national totals
+    const nationalRes = await app.request("/api/elections/1/results");
+    const national = await nationalRes.json();
+    const nationalTotal = national.results.reduce(
+      (sum: number, r: any) => sum + r.total_votes,
+      0
+    );
+
+    // Get first district
+    const distRes = await app.request("/api/geography/districts");
+    const districts = await distRes.json();
+    const districtId = districts[0].id;
+
+    // Get filtered results
+    const filteredRes = await app.request(
+      `/api/elections/1/results?district=${districtId}`
+    );
+    expect(filteredRes.status).toBe(200);
+    const filtered = await filteredRes.json();
+    const filteredTotal = filtered.results.reduce(
+      (sum: number, r: any) => sum + r.total_votes,
+      0
+    );
+
+    expect(filteredTotal).toBeLessThan(nationalTotal);
+    expect(filteredTotal).toBeGreaterThan(0);
+  });
+
+  it("filtering by invalid ID returns empty results", async () => {
+    const res = await app.request(
+      "/api/elections/1/results?municipality=999999"
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.results).toEqual([]);
+  });
 });
