@@ -11,39 +11,8 @@ env:
   CADDYFILE: /home/sova/compose/caddy/Caddyfile
 
 jobs:
-  test:
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    container:
-      image: docker.gitea.com/runner-images:ubuntu-latest
-      volumes:
-        - /home/sova/data/elections.db:/elections.db:ro
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Copy database to workspace
-        run: cp /elections.db ${{ github.workspace }}/elections.db
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install build tools
-        run: apt-get update && apt-get install -y build-essential python3
-
-      - name: Install pnpm
-        run: npm install -g pnpm
-
-      - name: Install dependencies
-        run: cd server && pnpm install
-
-      - name: Run tests
-        run: cd server && pnpm vitest run
-
   deploy:
     if: github.event_name == 'push'
-    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,10 +24,19 @@ jobs:
           SLUG=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]' | sed 's/-\+/-/g; s/^-//; s/-$//' | cut -c1-40)
           echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
           echo "container=preview-${PROJECT}-${SLUG}" >> "$GITHUB_OUTPUT"
+          echo "test=test-${PROJECT}-${SLUG}" >> "$GITHUB_OUTPUT"
           echo "host=preview-${PROJECT}-${SLUG}.home.georgi.alexandrov.dev" >> "$GITHUB_OUTPUT"
 
       - name: Build image
         run: docker build -t ${{ steps.slug.outputs.container }} .
+
+      - name: Run tests inside built image
+        run: |
+          docker run --rm \
+            -v ${{ env.DB_HOST_PATH }}:/app/elections.db:ro \
+            --name ${{ steps.slug.outputs.test }} \
+            ${{ steps.slug.outputs.container }} \
+            sh -c "cd /app/server && npm install --include=dev && npx vitest run"
 
       - name: Stop old container
         run: docker stop ${{ steps.slug.outputs.container }} 2>/dev/null || true && docker rm ${{ steps.slug.outputs.container }} 2>/dev/null || true
