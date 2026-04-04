@@ -1,9 +1,10 @@
 import { Hono } from "hono";
-import db from "../db.js";
+import getDb from "../db.js";
 
 const elections = new Hono();
 
 elections.get("/", (c) => {
+  const db = getDb();
   const rows = db
     .prepare("SELECT id, name, date, type FROM elections ORDER BY date DESC")
     .all();
@@ -11,6 +12,7 @@ elections.get("/", (c) => {
 });
 
 elections.get("/:id/results", (c) => {
+  const db = getDb();
   const { id } = c.req.param();
 
   const election = db
