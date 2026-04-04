@@ -29,19 +29,14 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install pnpm
-        run: npm install -g pnpm
+      - name: Install dependencies
+        run: cd server && npm install
 
-      - name: Download elections.db from release
-        run: |
-          curl -fSL \
-            -H "Authorization: token ${{ github.token }}" \
-            "https://git.home.georgi.alexandrov.dev/georgi/bg-elections-data/releases/download/data-v1/elections.db" \
-            -o elections.db
-          ls -lh elections.db
+      - name: Link database
+        run: ln -s ${{ env.DB_HOST_PATH }} elections.db
 
       - name: Run tests
-        run: npm test -w server
+        run: cd server && npx vitest run
 
   deploy:
     if: github.event_name == 'push'
