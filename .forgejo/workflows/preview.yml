@@ -17,6 +17,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Mount database from host
+        run: |
+          docker cp $(hostname):${{ env.DB_HOST_PATH }} ${{ github.workspace }}/elections.db 2>/dev/null || \
+          ln -sf ${{ env.DB_HOST_PATH }} ${{ github.workspace }}/elections.db 2>/dev/null || \
+          echo "Trying direct path..." && ls -la ${{ env.DB_HOST_PATH }} && cp ${{ env.DB_HOST_PATH }} ${{ github.workspace }}/elections.db
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -24,9 +30,6 @@ jobs:
 
       - name: Install pnpm
         run: npm install -g pnpm
-
-      - name: Copy database from host
-        run: docker cp forgejo-runner:${{ env.DB_HOST_PATH }} elections.db 2>/dev/null || cp ${{ env.DB_HOST_PATH }} elections.db 2>/dev/null || echo "DB not available, tests may skip"
 
       - name: Install dependencies
         run: cd server && pnpm install
