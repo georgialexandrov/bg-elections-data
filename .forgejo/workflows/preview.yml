@@ -6,7 +6,6 @@ on:
   delete:
 
 env:
-  REGISTRY: registry.home.georgi.alexandrov.dev
   PROJECT: elections
   DOMAIN: yolo.home.georgi.alexandrov.dev
   DB_HOST_PATH: /home/sova/data/elections.db
@@ -24,15 +23,12 @@ jobs:
           BRANCH="${GITHUB_REF_NAME}"
           SLUG=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]' | sed 's/-\+/-/g; s/^-//; s/-$//')
           echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
-          echo "image=$REGISTRY/$PROJECT:$SLUG" >> "$GITHUB_OUTPUT"
+          echo "image=preview-${PROJECT}-${SLUG}" >> "$GITHUB_OUTPUT"
           echo "container=preview-${PROJECT}-${SLUG}" >> "$GITHUB_OUTPUT"
           echo "host=${SLUG}-${PROJECT}.${DOMAIN}" >> "$GITHUB_OUTPUT"
 
       - name: Build image
         run: docker build -t ${{ steps.slug.outputs.image }} .
-
-      - name: Push to registry
-        run: docker push ${{ steps.slug.outputs.image }}
 
       - name: Stop old container
         run: docker stop ${{ steps.slug.outputs.container }} 2>/dev/null || true && docker rm ${{ steps.slug.outputs.container }} 2>/dev/null || true
@@ -52,7 +48,6 @@ jobs:
           echo "## Preview deployed" >> $GITHUB_STEP_SUMMARY
           echo "- **URL:** https://${{ steps.slug.outputs.host }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Container:** ${{ steps.slug.outputs.container }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Image:** ${{ steps.slug.outputs.image }}" >> $GITHUB_STEP_SUMMARY
 
   cleanup:
     if: github.event_name == 'delete' && github.event.ref_type == 'branch'
@@ -64,7 +59,7 @@ jobs:
           BRANCH="${{ github.event.ref }}"
           SLUG=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]' | sed 's/-\+/-/g; s/^-//; s/-$//')
           echo "container=preview-${PROJECT}-${SLUG}" >> "$GITHUB_OUTPUT"
-          echo "image=$REGISTRY/$PROJECT:$SLUG" >> "$GITHUB_OUTPUT"
+          echo "image=preview-${PROJECT}-${SLUG}" >> "$GITHUB_OUTPUT"
 
       - name: Stop and remove container
         run: docker stop ${{ steps.slug.outputs.container }} 2>/dev/null || true && docker rm ${{ steps.slug.outputs.container }} 2>/dev/null || true
