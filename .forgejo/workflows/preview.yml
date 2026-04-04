@@ -52,7 +52,6 @@ jobs:
 
       - name: Run tests
         run: npm test -w server
-        continue-on-error: true
 
       - name: Set branch slug
         id: slug
