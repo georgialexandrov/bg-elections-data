@@ -30,13 +30,15 @@ jobs:
       - name: Build image
         run: docker build -t ${{ steps.slug.outputs.container }} .
 
-      - name: Run tests inside built image
+      - name: Build test image from build stage
+        run: docker build --target build -t ${{ steps.slug.outputs.test }} .
+
+      - name: Run tests
         run: |
-          docker run --rm -a stdout -a stderr \
+          docker run --rm \
             -v ${{ env.DB_HOST_PATH }}:/app/elections.db:ro \
-            --name ${{ steps.slug.outputs.test }} \
-            ${{ steps.slug.outputs.container }} \
-            sh -c "cd /app/server && npm install --include=dev && npx vitest run --reporter=verbose"
+            ${{ steps.slug.outputs.test }} \
+            sh -c "cd /app/server && npx vitest run"
 
       - name: Stop old container
         run: docker stop ${{ steps.slug.outputs.container }} 2>/dev/null || true && docker rm ${{ steps.slug.outputs.container }} 2>/dev/null || true
