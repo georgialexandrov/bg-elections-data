@@ -56,7 +56,7 @@ elections.get("/:id/results", (c) => {
   if (geoColumn && geoValue) {
     sql = `SELECT p.id AS party_id, COALESCE(ep.name_on_ballot, p.canonical_name) AS party_name, SUM(v.total) AS total_votes
        FROM votes v
-       JOIN sections s ON s.election_id = v.election_id AND s.code = v.section_code
+       JOIN sections s ON s.election_id = v.election_id AND s.section_code = v.section_code
        JOIN locations l ON l.id = s.location_id
        JOIN election_parties ep ON ep.election_id = v.election_id AND ep.ballot_number = v.party_number
        JOIN parties p ON p.id = ep.party_id
