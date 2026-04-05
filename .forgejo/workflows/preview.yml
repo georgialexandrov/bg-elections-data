@@ -65,7 +65,7 @@ jobs:
         id: slug
         run: |
           BRANCH="${GITHUB_REF_NAME}"
-          SLUG=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]' | sed 's/-\+/-/g; s/^-//; s/-$//' | cut -c1-40)
+          SLUG=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]' | sed 's/-\+/-/g; s/^-//; s/-$//' | cut -c1-40 | sed 's/-$//')
           echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
           echo "container=preview-${PROJECT}-${SLUG}" >> "$GITHUB_OUTPUT"
           echo "host=preview-${PROJECT}-${SLUG}.home.georgi.alexandrov.dev" >> "$GITHUB_OUTPUT"
@@ -120,7 +120,7 @@ jobs:
         id: slug
         run: |
           BRANCH="${{ github.event.ref }}"
-          SLUG=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]' | sed 's/-\+/-/g; s/^-//; s/-$//' | cut -c1-40)
+          SLUG=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]' | sed 's/-\+/-/g; s/^-//; s/-$//' | cut -c1-40 | sed 's/-$//')
           echo "container=preview-${PROJECT}-${SLUG}" >> "$GITHUB_OUTPUT"
 
       - name: Stop and remove container
