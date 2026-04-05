@@ -43,6 +43,8 @@ export default function ElectionList() {
             </Link>
             {" | "}
             <Link to={`/turnout/${e.id}`}>Turnout</Link>
+            {" | "}
+            <Link to={`/elections/${e.id}/anomalies`}>Anomalies</Link>
           </li>
         ))}
       </ul>

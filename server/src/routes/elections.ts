@@ -281,6 +281,92 @@ ORDER BY group_name`;
   });
 });
 
+const VALID_SORT_COLUMNS = [
+  "risk_score", "turnout_rate", "turnout_zscore", "benford_score",
+  "peer_vote_deviation", "arithmetic_error", "vote_sum_mismatch",
+  "section_code", "settlement_name",
+] as const;
+
+elections.get("/:id/anomalies", (c) => {
+  const db = getDb();
+  const { id } = c.req.param();
+
+  const election = db
+    .prepare("SELECT id, name, date, type FROM elections WHERE id = ?")
+    .get(id) as { id: number; name: string; date: string; type: string } | undefined;
+
+  if (!election) {
+    return c.json({ error: "Election not found" }, 404);
+  }
+
+  // Parse query params
+  const minRisk = parseFloat(c.req.query("min_risk") ?? "0.3");
+  const sort = c.req.query("sort") ?? "risk_score";
+  const order = c.req.query("order") ?? "desc";
+  const limit = Math.min(Math.max(parseInt(c.req.query("limit") ?? "50", 10) || 50, 1), 500);
+  const offset = Math.max(parseInt(c.req.query("offset") ?? "0", 10) || 0, 0);
+
+  if (!VALID_SORT_COLUMNS.includes(sort as any)) {
+    return c.json({ error: `Invalid sort column. Must be one of: ${VALID_SORT_COLUMNS.join(", ")}` }, 400);
+  }
+
+  const orderDir = order === "asc" ? "ASC" : "DESC";
+
+  // Geographic filter — most specific wins
+  const kmetstvo = c.req.query("kmetstvo");
+  const localRegion = c.req.query("local_region");
+  const municipality = c.req.query("municipality");
+  const district = c.req.query("district");
+  const rik = c.req.query("rik");
+
+  let filterColumn: string | null = null;
+  let filterValue: string | null = null;
+
+  if (kmetstvo) {
+    filterColumn = "l.kmetstvo_id";
+    filterValue = kmetstvo;
+  } else if (localRegion) {
+    filterColumn = "l.local_region_id";
+    filterValue = localRegion;
+  } else if (municipality) {
+    filterColumn = "l.municipality_id";
+    filterValue = municipality;
+  } else if (district) {
+    filterColumn = "l.district_id";
+    filterValue = district;
+  } else if (rik) {
+    filterColumn = "l.rik_id";
+    filterValue = rik;
+  }
+
+  const filterClause = filterColumn && filterValue ? ` AND ${filterColumn} = ?` : "";
+  const baseParams: unknown[] = filterColumn && filterValue ? [id, minRisk, filterValue] : [id, minRisk];
+
+  // Sort column mapping: settlement_name comes from locations table
+  const sortColumn = sort === "settlement_name" ? "l.settlement_name" : sort === "section_code" ? "ss.section_code" : `ss.${sort}`;
+
+  const sql = `SELECT ss.section_code, l.settlement_name, l.lat, l.lng,
+       ss.risk_score, ss.turnout_rate, ss.turnout_zscore, ss.benford_score,
+       ss.peer_vote_deviation, ss.arithmetic_error, ss.vote_sum_mismatch
+FROM section_scores ss
+JOIN sections s ON s.election_id = ss.election_id AND s.section_code = ss.section_code
+JOIN locations l ON l.id = s.location_id
+WHERE ss.election_id = ? AND ss.risk_score >= ?${filterClause}
+ORDER BY ${sortColumn} ${orderDir}
+LIMIT ? OFFSET ?`;
+
+  const countSql = `SELECT COUNT(*) as total
+FROM section_scores ss
+JOIN sections s ON s.election_id = ss.election_id AND s.section_code = ss.section_code
+JOIN locations l ON l.id = s.location_id
+WHERE ss.election_id = ? AND ss.risk_score >= ?${filterClause}`;
+
+  const sections = db.prepare(sql).all(...baseParams, limit, offset);
+  const { total } = db.prepare(countSql).get(...baseParams) as { total: number };
+
+  return c.json({ election, sections, total, limit, offset });
+});
+
 elections.get("/:id/results", (c) => {
   const db = getDb();
   const { id } = c.req.param();

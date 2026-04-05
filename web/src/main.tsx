@@ -1,3 +1,4 @@
+import "./index.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router";
@@ -7,6 +8,7 @@ import CompareElections from "./pages/compare-elections.js";
 import Turnout from "./pages/turnout.js";
 import PartyList from "./pages/party-list.js";
 import PartyProfile from "./pages/party-profile.js";
+import SectionAnomalies from "./pages/section-anomalies.js";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -18,6 +20,7 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/turnout/:id" element={<Turnout />} />
         <Route path="/parties" element={<PartyList />} />
         <Route path="/parties/:id" element={<PartyProfile />} />
+        <Route path="/elections/:id/anomalies" element={<SectionAnomalies />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>
