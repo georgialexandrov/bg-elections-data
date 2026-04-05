@@ -30,6 +30,9 @@ export default function ElectionList() {
   return (
     <div>
       <h1>Elections</h1>
+      <p>
+        <Link to="/compare">Compare elections</Link>
+      </p>
       <ul>
         {elections.map((e) => (
           <li key={e.id}>

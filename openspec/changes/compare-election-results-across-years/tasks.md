@@ -17,20 +17,20 @@
 
 ## 3. Frontend dependencies
 
-- [ ] 3.1 Install `chart.js` and `react-chartjs-2` in the `web/` package
-- [ ] 3.2 Verify the dev build compiles with the new dependency
+- [x] 3.1 Install `chart.js` and `react-chartjs-2` in the `web/` package
+- [x] 3.2 Verify the dev build compiles with the new dependency
 
 ## 4. Compare page frontend
 
-- [ ] 4.1 Create `web/src/pages/compare-elections.tsx` with election multi-select UI: fetch election list from `GET /api/elections`, render checkboxes, store selected IDs in URL search params (`?elections=1,17`)
-- [ ] 4.2 Integrate `LocationFilter` component for geographic filtering on the compare page
-- [ ] 4.3 Fetch comparison data from `GET /api/elections/compare` when 2+ elections are selected, handle loading and error states
-- [ ] 4.4 Render grouped bar chart using `react-chartjs-2` `Bar` component: one group per party (top 15 by votes), one bar per election year, bars showing percentage vote share, color-coded with legend
-- [ ] 4.5 Add route `/compare` in `web/src/main.tsx` pointing to the new page component
-- [ ] 4.6 Add navigation link to `/compare` on the election list page (`web/src/pages/election-list.tsx`)
+- [x] 4.1 Create `web/src/pages/compare-elections.tsx` with election multi-select UI: fetch election list from `GET /api/elections`, render checkboxes, store selected IDs in URL search params (`?elections=1,17`)
+- [x] 4.2 Integrate `LocationFilter` component for geographic filtering on the compare page
+- [x] 4.3 Fetch comparison data from `GET /api/elections/compare` when 2+ elections are selected, handle loading and error states
+- [x] 4.4 Render grouped bar chart using `react-chartjs-2` `Bar` component: one group per party (top 15 by votes), one bar per election year, bars showing percentage vote share, color-coded with legend
+- [x] 4.5 Add route `/compare` in `web/src/main.tsx` pointing to the new page component
+- [x] 4.6 Add navigation link to `/compare` on the election list page (`web/src/pages/election-list.tsx`)
 
 ## 5. Integration verification
 
 - [x] 5.1 Run existing API tests to confirm no regressions in the `/:id/results` endpoint
 - [x] 5.2 Run new comparison API tests and verify all pass
-- [ ] 5.3 Verify frontend builds without errors (`npm run build` in `web/`)
+- [x] 5.3 Verify frontend builds without errors (`npm run build` in `web/`)
