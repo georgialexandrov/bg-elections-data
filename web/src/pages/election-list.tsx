@@ -39,6 +39,8 @@ export default function ElectionList() {
             <Link to={`/elections/${e.id}`}>
               {e.name} ({e.date})
             </Link>
+            {" | "}
+            <Link to={`/turnout/${e.id}`}>Turnout</Link>
           </li>
         ))}
       </ul>

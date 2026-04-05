@@ -175,6 +175,112 @@ elections.get("/compare", (c) => {
   return c.json({ elections: existingElections, results });
 });
 
+const VALID_GROUP_BY = ["rik", "district", "municipality", "kmetstvo", "local_region"] as const;
+type GroupByLevel = typeof VALID_GROUP_BY[number];
+
+const GEO_TABLE_MAP: Record<GroupByLevel, { table: string; column: string }> = {
+  rik: { table: "riks", column: "rik_id" },
+  district: { table: "districts", column: "district_id" },
+  municipality: { table: "municipalities", column: "municipality_id" },
+  kmetstvo: { table: "kmetstva", column: "kmetstvo_id" },
+  local_region: { table: "local_regions", column: "local_region_id" },
+};
+
+elections.get("/:id/turnout", (c) => {
+  const db = getDb();
+  const { id } = c.req.param();
+
+  const election = db
+    .prepare("SELECT id, name, date, type FROM elections WHERE id = ?")
+    .get(id) as { id: number; name: string; date: string; type: string } | undefined;
+
+  if (!election) {
+    return c.json({ error: "Election not found" }, 404);
+  }
+
+  const groupBy = c.req.query("group_by") as string | undefined;
+
+  if (!groupBy) {
+    return c.json({ error: "Missing required 'group_by' query parameter" }, 400);
+  }
+
+  if (!VALID_GROUP_BY.includes(groupBy as GroupByLevel)) {
+    return c.json({ error: `Invalid group_by value. Must be one of: ${VALID_GROUP_BY.join(", ")}` }, 400);
+  }
+
+  const geo = GEO_TABLE_MAP[groupBy as GroupByLevel];
+
+  // Determine geographic filter — most specific wins
+  const kmetstvo = c.req.query("kmetstvo");
+  const localRegion = c.req.query("local_region");
+  const municipality = c.req.query("municipality");
+  const district = c.req.query("district");
+  const rik = c.req.query("rik");
+
+  let filterColumn: string | null = null;
+  let filterValue: string | null = null;
+
+  if (kmetstvo) {
+    filterColumn = "l.kmetstvo_id";
+    filterValue = kmetstvo;
+  } else if (localRegion) {
+    filterColumn = "l.local_region_id";
+    filterValue = localRegion;
+  } else if (municipality) {
+    filterColumn = "l.municipality_id";
+    filterValue = municipality;
+  } else if (district) {
+    filterColumn = "l.district_id";
+    filterValue = district;
+  } else if (rik) {
+    filterColumn = "l.rik_id";
+    filterValue = rik;
+  }
+
+  const filterClause = filterColumn && filterValue ? ` AND ${filterColumn} = ?` : "";
+  const params: unknown[] = filterColumn && filterValue ? [id, filterValue] : [id];
+
+  const sql = `SELECT g.id AS group_id, g.name AS group_name,
+       SUM(COALESCE(p.registered_voters, 0)) AS registered_voters,
+       SUM(COALESCE(p.actual_voters, 0)) AS actual_voters
+FROM protocols p
+JOIN sections s ON s.election_id = p.election_id AND s.section_code = p.section_code
+JOIN locations l ON l.id = s.location_id
+JOIN ${geo.table} g ON g.id = l.${geo.column}
+WHERE p.election_id = ?${filterClause}
+GROUP BY g.id, g.name
+ORDER BY group_name`;
+
+  const rows = db.prepare(sql).all(...params) as {
+    group_id: number;
+    group_name: string;
+    registered_voters: number;
+    actual_voters: number;
+  }[];
+
+  const turnout = rows.map((r) => ({
+    ...r,
+    turnout_pct: r.registered_voters > 0
+      ? Math.round((r.actual_voters / r.registered_voters) * 10000) / 100
+      : 0,
+  }));
+
+  const totalRegistered = rows.reduce((s, r) => s + r.registered_voters, 0);
+  const totalActual = rows.reduce((s, r) => s + r.actual_voters, 0);
+
+  return c.json({
+    election,
+    turnout,
+    totals: {
+      registered_voters: totalRegistered,
+      actual_voters: totalActual,
+      turnout_pct: totalRegistered > 0
+        ? Math.round((totalActual / totalRegistered) * 10000) / 100
+        : 0,
+    },
+  });
+});
+
 elections.get("/:id/results", (c) => {
   const db = getDb();
   const { id } = c.req.param();
