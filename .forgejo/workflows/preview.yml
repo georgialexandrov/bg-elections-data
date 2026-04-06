@@ -3,6 +3,9 @@ name: Preview Deploy
 on:
   push:
     branches: ['**']
+  pull_request:
+    types: [closed]
+    branches: [main]
   delete:
 
 env:
@@ -65,7 +68,7 @@ jobs:
         id: slug
         run: |
           BRANCH="${GITHUB_REF_NAME}"
-          SLUG=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]' | sed 's/-\+/-/g; s/^-//; s/-$//' | cut -c1-40 | sed 's/-$//')
+          SLUG=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]' | sed 's/-\+/-/g; s/^-//; s/-$//' | cut -c1-40 | sed 's/-$//' | sed 's/-$//')
           echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
           echo "container=preview-${PROJECT}-${SLUG}" >> "$GITHUB_OUTPUT"
           echo "host=preview-${PROJECT}-${SLUG}.home.georgi.alexandrov.dev" >> "$GITHUB_OUTPUT"
@@ -111,6 +114,30 @@ jobs:
           echo "- **URL:** https://${{ steps.slug.outputs.host }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Container:** ${{ steps.slug.outputs.container }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Tests:** Passed" >> $GITHUB_STEP_SUMMARY
+
+  cleanup-merged:
+    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set branch slug
+        id: slug
+        run: |
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          SLUG=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]' | sed 's/-\+/-/g; s/^-//; s/-$//' | cut -c1-40 | sed 's/-$//')
+          echo "container=preview-${PROJECT}-${SLUG}" >> "$GITHUB_OUTPUT"
+
+      - name: Stop and remove container
+        run: docker stop ${{ steps.slug.outputs.container }} 2>/dev/null || true && docker rm ${{ steps.slug.outputs.container }} 2>/dev/null || true
+
+      - name: Remove Caddy entry and image
+        run: |
+          CONTAINER="${{ steps.slug.outputs.container }}"
+          docker cp caddy:/etc/caddy/Caddyfile /tmp/Caddyfile 2>/dev/null || exit 0
+          grep -v "@${CONTAINER}" /tmp/Caddyfile | grep -v "reverse_proxy ${CONTAINER}:" > /tmp/Caddyfile.clean || true
+          docker cp /tmp/Caddyfile.clean caddy:/etc/caddy/Caddyfile.new
+          docker exec caddy sh -c "cat /etc/caddy/Caddyfile.new > /etc/caddy/Caddyfile && rm /etc/caddy/Caddyfile.new"
+          docker exec caddy caddy reload --config /etc/caddy/Caddyfile 2>/dev/null || true
+          docker rmi ${{ steps.slug.outputs.container }} 2>/dev/null || true
 
   cleanup:
     if: github.event_name == 'delete' && github.event.ref_type == 'branch'
