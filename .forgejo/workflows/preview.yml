@@ -7,6 +7,7 @@ on:
     types: [closed]
     branches: [main]
   delete:
+  workflow_dispatch:
 
 env:
   PROJECT: elections
@@ -14,7 +15,7 @@ env:
 
 jobs:
   test:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     container:
       image: docker.gitea.com/runner-images:ubuntu-latest
@@ -38,7 +39,7 @@ jobs:
         run: cd server && pnpm install && pnpm vitest run --reporter=verbose 2>&1
 
   check-app-changes:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
       has_app_code: ${{ steps.check.outputs.has_app_code }}
@@ -50,7 +51,10 @@ jobs:
       - name: Check if branch has app source changes vs main
         id: check
         run: |
-          if git diff --name-only origin/main...HEAD | grep -qE '^(server|web|Dockerfile|package\.json|package-lock\.json)'; then
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            echo "has_app_code=true" >> "$GITHUB_OUTPUT"
+            echo "Main branch — always deploy"
+          elif git diff --name-only origin/main...HEAD | grep -qE '^(server|web|Dockerfile|package\.json|package-lock\.json)'; then
             echo "has_app_code=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_app_code=false" >> "$GITHUB_OUTPUT"
@@ -58,7 +62,7 @@ jobs:
           fi
 
   deploy:
-    if: github.event_name == 'push' && needs.check-app-changes.outputs.has_app_code == 'true'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.check-app-changes.outputs.has_app_code == 'true'
     needs: [test, check-app-changes]
     runs-on: ubuntu-latest
     steps:
