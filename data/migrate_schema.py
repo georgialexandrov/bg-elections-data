@@ -68,6 +68,7 @@ def migrate_votes(conn: sqlite3.Connection) -> None:
     """)
     run(conn, """
         CREATE INDEX idx_votes_section_election ON votes(section_code, election_id);
+        CREATE INDEX idx_votes_election ON votes(election_id);
     """)
 
 
@@ -142,6 +143,7 @@ def migrate_section_scores(conn: sqlite3.Connection) -> None:
         DROP TABLE section_scores_old;
 
         CREATE INDEX idx_scores_risk ON section_scores(risk_score DESC);
+        CREATE INDEX idx_section_scores_election ON section_scores(election_id);
     """)
 
 
