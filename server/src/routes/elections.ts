@@ -285,6 +285,8 @@ const VALID_SORT_COLUMNS = [
   "risk_score", "turnout_rate", "turnout_zscore", "benford_score",
   "peer_vote_deviation", "arithmetic_error", "vote_sum_mismatch",
   "section_code", "settlement_name",
+  "benford_risk", "peer_risk", "acf_risk",
+  "acf_multicomponent", "acf_turnout_shift_norm", "acf_party_shift_norm",
 ] as const;
 
 elections.get("/:id/anomalies", (c) => {
@@ -340,18 +342,37 @@ elections.get("/:id/anomalies", (c) => {
   }
 
   const filterClause = filterColumn && filterValue ? ` AND ${filterColumn} = ?` : "";
+  const includeSpecial = c.req.query("include_special") === "true";
+  const typeClause = includeSpecial ? "" : " AND ss.section_type = 'normal'";
+
+  // Which risk column to filter by? Depends on methodology query param
+  const methodology = c.req.query("methodology"); // "benford", "peer", "acf", or default (combined)
+  let riskColumn = "ss.risk_score";
+  if (methodology === "benford") riskColumn = "ss.benford_risk";
+  else if (methodology === "peer") riskColumn = "ss.peer_risk";
+  else if (methodology === "acf") riskColumn = "ss.acf_risk";
+
   const baseParams: unknown[] = filterColumn && filterValue ? [id, minRisk, filterValue] : [id, minRisk];
 
   // Sort column mapping: settlement_name comes from locations table
   const sortColumn = sort === "settlement_name" ? "l.settlement_name" : sort === "section_code" ? "ss.section_code" : `ss.${sort}`;
 
   const sql = `SELECT ss.section_code, l.settlement_name, l.lat, l.lng,
-       ss.risk_score, ss.turnout_rate, ss.turnout_zscore, ss.benford_score,
-       ss.peer_vote_deviation, ss.arithmetic_error, ss.vote_sum_mismatch
+       ss.risk_score, ss.turnout_rate, ss.turnout_zscore,
+       ss.benford_chi2, ss.benford_p, ss.benford_score,
+       ss.ekatte_turnout_zscore, ss.ekatte_turnout_zscore_norm,
+       ss.peer_vote_deviation, ss.peer_vote_deviation_norm,
+       ss.arithmetic_error, ss.vote_sum_mismatch,
+       ss.section_type,
+       ss.benford_risk, ss.peer_risk, ss.acf_risk,
+       ss.acf_turnout_outlier, ss.acf_winner_outlier, ss.acf_invalid_outlier,
+       ss.acf_multicomponent,
+       ss.acf_turnout_shift, ss.acf_turnout_shift_norm,
+       ss.acf_party_shift, ss.acf_party_shift_norm
 FROM section_scores ss
 JOIN sections s ON s.election_id = ss.election_id AND s.section_code = ss.section_code
 JOIN locations l ON l.id = s.location_id
-WHERE ss.election_id = ? AND ss.risk_score >= ?${filterClause}
+WHERE ss.election_id = ? AND ${riskColumn} >= ?${filterClause}${typeClause}
 ORDER BY ${sortColumn} ${orderDir}
 LIMIT ? OFFSET ?`;
 
@@ -359,7 +380,7 @@ LIMIT ? OFFSET ?`;
 FROM section_scores ss
 JOIN sections s ON s.election_id = ss.election_id AND s.section_code = ss.section_code
 JOIN locations l ON l.id = s.location_id
-WHERE ss.election_id = ? AND ss.risk_score >= ?${filterClause}`;
+WHERE ss.election_id = ? AND ${riskColumn} >= ?${filterClause}${typeClause}`;
 
   const sections = db.prepare(sql).all(...baseParams, limit, offset);
   const { total } = db.prepare(countSql).get(...baseParams) as { total: number };

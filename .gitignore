@@ -12,7 +12,6 @@ data/cik-exports/
 
 # Obsolete scripts (kept in parent hackathon dir)
 data/parse.py
-data/score_sections.py
 data/geocode_locations.py
 
 # Tool configs
