@@ -80,25 +80,37 @@ function pct2(value: number): string {
   return (Math.floor(value * 100) / 100).toFixed(2);
 }
 
-// Build CIK protocol URLs for the latest elections (pe202410)
+// CIK results URL prefixes per election ID
+const CIK_ELECTION_MAP: Record<number, { prefix: string; type: "p" | "pk"; video?: string }> = {
+  1:  { prefix: "pe202410",      type: "p",  video: "pe202410" },
+  2:  { prefix: "pe202410_ks",   type: "pk", video: "pe202410" },
+  3:  { prefix: "pe202406",      type: "p",  video: "pe202406" },
+  4:  { prefix: "ep2024",        type: "p",  video: "ep2024" },
+  5:  { prefix: "mi2023/os",     type: "p" },
+  6:  { prefix: "mi2023/kmet",   type: "p" },
+  7:  { prefix: "mi2023/ko",     type: "p" },
+  8:  { prefix: "mi2023/kr",     type: "p" },
+  9:  { prefix: "mi2023_tur2/kmet", type: "p" },
+  10: { prefix: "mi2023_tur2/ko",   type: "p" },
+  11: { prefix: "mi2023_tur2/kr",   type: "p" },
+  12: { prefix: "ns2023",        type: "p",  video: "ns2023" },
+  13: { prefix: "ns2022",        type: "p",  video: "ns2022" },
+  14: { prefix: "pi2021_11/ns",  type: "p",  video: "pi2021" },
+  15: { prefix: "pi2021_11/pr",  type: "p",  video: "pi2021" },
+  16: { prefix: "pi2021_11_tur2",type: "p",  video: "pi2021" },
+  17: { prefix: "ns2021_07",     type: "p",  video: "ns2021" },
+  18: { prefix: "pi2021",        type: "p",  video: "pi2021" },
+};
+
 function buildProtocolLinks(sectionCode: string, electionId: number) {
-  // Only for election 1 (27.10.2024) and 2 (27.10.2024 КС)
+  const config = CIK_ELECTION_MAP[electionId];
+  if (!config) return null;
   const rik = sectionCode.slice(0, 2);
-  if (electionId === 1) {
-    return {
-      protocol: `https://results.cik.bg/pe202410/rezultati/${rik}.html#/p/64/${sectionCode}.0.html`,
-      scan: `https://results.cik.bg/pe202410/rezultati/${rik}.html#/s/64/${sectionCode}.0.pdf`,
-      video: `https://evideo.bg/pe202410/${rik}.html#${sectionCode}`,
-    };
-  }
-  if (electionId === 2) {
-    return {
-      protocol: `https://results.cik.bg/pe202410_ks/rezultati/${rik}.html#/pk/64/${sectionCode}.0.html`,
-      scan: `https://results.cik.bg/pe202410_ks/rezultati/${rik}.html#/s/64/${sectionCode}.0.pdf`,
-      video: `https://evideo.bg/pe202410/${rik}.html#${sectionCode}`,
-    };
-  }
-  return null;
+  return {
+    protocol: `https://results.cik.bg/${config.prefix}/rezultati/${rik}.html#/${config.type}/64/${sectionCode}.0.html`,
+    scan: `https://results.cik.bg/${config.prefix}/rezultati/${rik}.html#/s/64/${sectionCode}.0.pdf`,
+    video: config.video ? `https://evideo.bg/${config.video}/${rik}.html#${sectionCode}` : null,
+  };
 }
 
 const SECTION_TYPE_LABELS: Record<string, string> = {
@@ -779,13 +791,17 @@ function ViolationsSection({ violations }: { violations: Violation[] }) {
   );
 }
 
-function SectionResults({ data, loading, electionId, sectionCode }: { data: SectionDetail | null; loading: boolean; electionId: string; sectionCode: string }) {
+function SectionResults({ data, loading, electionId, sectionCode, protocolUrl }: { data: SectionDetail | null; loading: boolean; electionId: string; sectionCode: string; protocolUrl?: string | null }) {
   if (loading) return <div className="text-xs text-muted-foreground">Зареждане на резултати...</div>;
   if (!data) return null;
 
   const { protocol: p, parties } = data;
   const maxVotes = parties[0]?.votes ?? 1;
-  const links = buildProtocolLinks(sectionCode, parseInt(electionId));
+  const generated = buildProtocolLinks(sectionCode, parseInt(electionId));
+  // Prefer stored protocol_url from DB, fall back to generated
+  const links = protocolUrl
+    ? { protocol: protocolUrl, scan: protocolUrl.replace("#/p/", "#/s/").replace("#/pk/", "#/s/").replace(".html", ".pdf"), video: generated?.video ?? null }
+    : generated;
 
   return (
     <div className="rounded-lg border border-border p-3">
@@ -833,7 +849,7 @@ function SectionResults({ data, loading, electionId, sectionCode }: { data: Sect
         <div className="mb-3 flex flex-wrap gap-2 text-[11px]">
           <a href={links.protocol} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Протокол</a>
           <a href={links.scan} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Сканиран</a>
-          <a href={links.video} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Видео</a>
+          {links.video && <a href={links.video} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Видео</a>}
         </div>
       )}
 
@@ -1053,7 +1069,7 @@ export function RiskSidebarContent({ section, electionId }: { section: RiskSecti
       </div>
 
       {/* Section results */}
-      <SectionResults data={sectionDetail} loading={detailLoading} electionId={electionId} sectionCode={s.section_code} />
+      <SectionResults data={sectionDetail} loading={detailLoading} electionId={electionId} sectionCode={s.section_code} protocolUrl={s.protocol_url} />
 
       {/* Overall risk */}
       <div className="rounded-lg border border-border p-3">

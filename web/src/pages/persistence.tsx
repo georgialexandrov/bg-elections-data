@@ -239,12 +239,12 @@ export default function Persistence() {
 
       {/* Table + Sidebar */}
       <div className="relative flex-1 overflow-hidden">
-      <div className="h-full overflow-auto">
+      <div className="h-full overflow-auto overflow-x-auto">
         {error && <div className="p-4 text-sm text-red-600">{error}</div>}
         {loading && !data && <div className="p-4 text-sm text-muted-foreground">Зареждане...</div>}
 
         {data && (
-          <table className="w-full text-xs">
+          <table className="min-w-[900px] text-xs">
             <thead className="sticky top-0 z-10 bg-background shadow-[0_1px_0_0] shadow-border">
               <tr>
                 <SortHeader label="Секция" column="section_code" currentSort={sort} currentOrder={order} onSort={handleSort} />

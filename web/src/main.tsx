@@ -9,6 +9,7 @@ import RiskMap from "./pages/risk-map.js";
 import SectionsTable from "./pages/sections-table.js";
 import Persistence from "./pages/persistence.js";
 import SectionDetail from "./pages/section-detail.js";
+import MissingCoordinates from "./pages/missing-coordinates.js";
 
 // Track page views on route change
 function AnalyticsTracker() {
@@ -49,6 +50,7 @@ createRoot(document.getElementById("root")!).render(
           <Route path="/:electionId/table" element={<SectionsTable />} />
           <Route path="/persistence" element={<Persistence />} />
           <Route path="/section/:sectionCode" element={<SectionDetail />} />
+          <Route path="/help/coordinates" element={<MissingCoordinates />} />
           {/* Redirect old risk URL to combined sections page */}
           <Route path="/:electionId/risk" element={<RedirectToSections />} />
 

@@ -464,7 +464,7 @@ function PartyLegend({
   onClear: () => void;
 }) {
   return (
-    <div className="absolute top-2 right-2 z-10 max-h-[calc(100%-1rem)] w-72 overflow-y-auto rounded-md border bg-background/95 shadow-md backdrop-blur-sm md:top-3 md:right-3 md:w-80">
+    <div className="absolute bottom-2 left-2 right-2 z-10 max-h-[40vh] w-auto overflow-y-auto rounded-md border bg-background/95 shadow-md backdrop-blur-sm md:bottom-auto md:left-auto md:top-3 md:right-3 md:max-h-[calc(100%-1rem)] md:w-80">
       <div className="sticky top-0 border-b bg-background/95 px-3 py-2 backdrop-blur-sm">
         <div className="flex items-center justify-between gap-2">
           <span className="min-w-0 truncate text-xs font-medium">
@@ -654,7 +654,7 @@ export default function DistrictPieMap() {
                   setTappedParty(null);
                   setGeoLevel(level);
                 }}
-                className={`rounded px-2.5 py-1 text-xs transition-colors ${
+                className={`rounded px-1.5 py-0.5 text-[11px] transition-colors md:px-2.5 md:py-1 md:text-xs ${
                   geoLevel === level
                     ? "bg-foreground text-background font-medium"
                     : "text-muted-foreground hover:bg-muted"

@@ -177,6 +177,64 @@ def create_view(conn: sqlite3.Connection) -> None:
     """)
 
 
+def ensure_indexes(conn: sqlite3.Connection) -> None:
+    """Create all performance indexes. Safe to re-run — uses IF NOT EXISTS."""
+    step("performance indexes")
+    run(conn, """
+        -- sections
+        CREATE INDEX IF NOT EXISTS idx_sections_election ON sections(election_id);
+        CREATE INDEX IF NOT EXISTS idx_sections_code ON sections(section_code);
+        CREATE INDEX IF NOT EXISTS idx_sections_location ON sections(location_id);
+        CREATE INDEX IF NOT EXISTS idx_sections_election_location ON sections(election_id, location_id);
+
+        -- locations geography
+        CREATE INDEX IF NOT EXISTS idx_loc_municipality_id ON locations(municipality_id);
+        CREATE INDEX IF NOT EXISTS idx_loc_kmetstvo_id ON locations(kmetstvo_id);
+        CREATE INDEX IF NOT EXISTS idx_loc_district_id ON locations(district_id);
+        CREATE INDEX IF NOT EXISTS idx_loc_rik_id ON locations(rik_id);
+        CREATE INDEX IF NOT EXISTS idx_loc_local_region_id ON locations(local_region_id);
+        CREATE INDEX IF NOT EXISTS idx_locations_ekatte ON locations(ekatte);
+
+        -- protocols
+        CREATE INDEX IF NOT EXISTS idx_protocols_election ON protocols(election_id);
+        CREATE INDEX IF NOT EXISTS idx_protocols_section ON protocols(section_code);
+        CREATE INDEX IF NOT EXISTS idx_protocols_election_section ON protocols(election_id, section_code);
+
+        -- votes
+        CREATE INDEX IF NOT EXISTS idx_votes_section_election ON votes(section_code, election_id);
+        CREATE INDEX IF NOT EXISTS idx_votes_election ON votes(election_id);
+
+        -- preferences
+        CREATE INDEX IF NOT EXISTS idx_pref_section_election ON preferences(section_code, election_id);
+
+        -- election_parties
+        CREATE INDEX IF NOT EXISTS idx_ep_election ON election_parties(election_id);
+        CREATE INDEX IF NOT EXISTS idx_ep_party ON election_parties(party_id);
+        CREATE INDEX IF NOT EXISTS idx_election_parties_ballot ON election_parties(election_id, ballot_number);
+
+        -- candidates
+        CREATE INDEX IF NOT EXISTS idx_candidates_election ON candidates(election_id);
+
+        -- section_scores
+        CREATE INDEX IF NOT EXISTS idx_scores_risk ON section_scores(risk_score DESC);
+        CREATE INDEX IF NOT EXISTS idx_section_scores_election ON section_scores(election_id);
+        CREATE INDEX IF NOT EXISTS idx_scores_section ON section_scores(section_code);
+        CREATE INDEX IF NOT EXISTS idx_section_scores_code_election ON section_scores(section_code, election_id);
+        CREATE INDEX IF NOT EXISTS idx_scores_election_risk ON section_scores(election_id, risk_score DESC);
+
+        -- protocol_violations
+        CREATE INDEX IF NOT EXISTS idx_violations_election ON protocol_violations(election_id);
+        CREATE INDEX IF NOT EXISTS idx_violations_section ON protocol_violations(section_code);
+        CREATE INDEX IF NOT EXISTS idx_violations_election_section ON protocol_violations(election_id, section_code);
+
+        -- geography
+        CREATE INDEX IF NOT EXISTS idx_kmetstva_ekatte ON kmetstva(ekatte);
+
+        -- elections
+        CREATE INDEX IF NOT EXISTS idx_elections_type_date ON elections(type, date DESC);
+    """)
+
+
 def vacuum(conn: sqlite3.Connection) -> None:
     step("VACUUM")
     t = time.time()
@@ -211,6 +269,7 @@ def main() -> None:
         migrate_section_scores(conn)
         create_view(conn)
 
+    ensure_indexes(conn)
     vacuum(conn)
     conn.close()
     print_sizes()

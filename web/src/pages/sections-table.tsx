@@ -293,7 +293,7 @@ export default function SectionsTable() {
         </div>
 
         {/* District */}
-        <div>
+        <div className="w-full sm:w-auto">
           <div className="mb-0.5 text-[11px] text-muted-foreground">Област</div>
           <select
             value={district}
@@ -314,7 +314,7 @@ export default function SectionsTable() {
         </div>
 
         {/* Municipality */}
-        <div>
+        <div className="w-full sm:w-auto">
           <div className="mb-0.5 text-[11px] text-muted-foreground">Община</div>
           <select
             value={municipality}
@@ -361,7 +361,7 @@ export default function SectionsTable() {
 
       {/* Table */}
       <div className="flex-1 overflow-auto">
-        <table className="w-full text-xs">
+        <table className="min-w-[900px] text-xs">
           <thead className="sticky top-0 z-10 border-b border-border bg-background">
             <tr>
               <SortHeader label="Секция" column="section_code" currentSort={sort} currentOrder={order} onSort={setSort} />

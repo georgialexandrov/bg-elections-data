@@ -25,12 +25,14 @@ then deduplicated by (ekatte, normalized_address).
 Safe to re-run: drops and recreates locations, rebuilds sections in-place.
 """
 
+import json
 import os
 import re
 import sqlite3
 from pathlib import Path
 
 DB_PATH = Path(os.environ.get("ELECTIONS_DB", Path(__file__).parent.parent / "elections.db"))
+GEOCODE_CACHE_PATH = Path(__file__).parent / "geocode_cache.json"
 
 
 def normalize_address(addr: str) -> str:
@@ -45,6 +47,70 @@ def normalize_address(addr: str) -> str:
     # Collapse whitespace
     s = re.sub(r"\s+", " ", s).strip()
     return s
+
+
+def restore_coordinates_from_cache(cur: sqlite3.Cursor, loc_rows: list[tuple]) -> int:
+    """Restore lat/lng from geocode_cache.json for locations that have cached results.
+
+    The cache maps geocoding query strings → {lat, lng, ...}. We rebuild the same
+    query strings that geocode_google.py would use for each address, then look them up.
+    This means a rebuild never loses previously geocoded coordinates.
+    """
+    if not GEOCODE_CACHE_PATH.exists():
+        print("  No geocode cache found, skipping coordinate restore")
+        return 0
+
+    with open(GEOCODE_CACHE_PATH) as f:
+        cache = json.load(f)
+
+    # Build a reverse lookup: normalized address → (lat, lng) from cache
+    # The cache keys are query strings like "ул. Първа 5, София, България"
+    # We need to match locations to cache entries. The simplest reliable approach:
+    # try the same query patterns that geocode_google.py uses.
+    restored = 0
+    for loc_id, ekatte, settlement_name, address in loc_rows:
+        if not address:
+            continue
+
+        # Try the full address as-is (most common cache key pattern)
+        # Also try common query patterns from geocode_google.py
+        queries_to_try = []
+
+        # The cache stores queries built by clean_address() in geocode_google.py.
+        # Rather than reimplementing that logic, do a simpler match:
+        # search cache keys that contain the address or settlement
+        addr_upper = address.upper().strip()
+        settlement_clean = ""
+        if settlement_name:
+            settlement_clean = re.sub(r'^(гр\.?\s*|с\.?\s*)', '', settlement_name, flags=re.IGNORECASE).strip()
+
+        # Try direct cache key matches for common patterns
+        if settlement_clean:
+            queries_to_try.append(f"{address}, {settlement_clean}, България")
+            queries_to_try.append(f"{settlement_clean}, България")
+
+        # Try extracting street from address
+        m = re.search(r'(?:УЛ\.|БУЛ\.|ПЛ\.)\s*["""]?\s*([^,"""\n]+)', addr_upper)
+        if m and settlement_clean:
+            street = m.group(0).strip().rstrip(',.')
+            street = re.sub(r'["""\u201c\u201d\u201e]', '', street)
+            street = re.sub(r'№\s*', '', street)
+            street = re.sub(r'\s+', ' ', street).strip()
+            queries_to_try.append(f"{street}, {settlement_clean}, България")
+
+        for q in queries_to_try:
+            if q in cache and cache[q] is not None:
+                lat = cache[q].get("lat")
+                lng = cache[q].get("lng")
+                if lat is not None and lng is not None:
+                    cur.execute(
+                        "UPDATE locations SET lat=?, lng=?, geocode_source='google' WHERE id=?",
+                        (lat, lng, loc_id),
+                    )
+                    restored += 1
+                    break
+
+    return restored
 
 
 def build_locations(cur: sqlite3.Cursor) -> int:
@@ -115,7 +181,11 @@ def build_locations(cur: sqlite3.Cursor) -> int:
             id              INTEGER PRIMARY KEY,
             ekatte          TEXT,
             settlement_name TEXT,
-            address         TEXT
+            address         TEXT,
+            lat             REAL,
+            lng             REAL,
+            geocode_source  TEXT,
+            location_type   TEXT
         );
     """)
 
@@ -123,6 +193,10 @@ def build_locations(cur: sqlite3.Cursor) -> int:
         "INSERT INTO locations (id, ekatte, settlement_name, address) VALUES (?,?,?,?)",
         loc_rows,
     )
+
+    # Step 4: restore coordinates from geocode cache
+    restored = restore_coordinates_from_cache(cur, loc_rows)
+    print(f"  {restored:,} locations restored coordinates from cache")
 
     return section_to_loc
 

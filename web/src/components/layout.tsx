@@ -52,9 +52,14 @@ export default function Layout() {
   return (
     <div className="flex h-screen w-full flex-col">
       {/* Navbar */}
-      <nav className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border bg-background px-2 py-1.5 md:h-12 md:flex-nowrap md:px-3 md:py-0">
-        {/* App title */}
-        <span className="text-sm font-bold tracking-tight">Избори</span>
+      <nav className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-border bg-background px-3 py-2 md:h-11 md:px-4 md:py-0">
+        {/* App title — editorial serif */}
+        <span className="font-display text-lg font-semibold tracking-tight text-foreground">
+          Избори
+        </span>
+
+        {/* Thin vertical divider */}
+        <span className="hidden h-4 w-px bg-border md:block" />
 
         {/* Election selector */}
         {elections.length > 0 && (
@@ -68,7 +73,7 @@ export default function Layout() {
               navigate(`/${val}/${view}`);
             }}
           >
-            <SelectTrigger size="sm" className="min-w-0 max-w-[160px] text-xs sm:max-w-[220px] md:max-w-[320px]">
+            <SelectTrigger size="sm" className="min-w-0 max-w-[280px] border-0 bg-transparent text-xs font-medium shadow-none sm:max-w-[400px] md:max-w-[500px]">
               <SelectValue placeholder="Избери избори">
                 {(() => {
                   const eid = electionId ?? String(elections[0]?.id);
@@ -77,7 +82,7 @@ export default function Layout() {
                 })()}
               </SelectValue>
             </SelectTrigger>
-            <SelectContent className="max-w-[calc(100vw-2rem)]">
+            <SelectContent className="min-w-[400px] max-w-[calc(100vw-2rem)]">
               {elections.map((e) => (
                 <SelectItem key={e.id} value={String(e.id)}>
                   <span className="truncate">{e.name}</span>
@@ -88,52 +93,62 @@ export default function Layout() {
           </Select>
         )}
 
-        {/* Election-scoped nav items */}
-        {(electionId || elections.length > 0) && (
-          <div className="ml-auto flex items-center gap-0.5 md:ml-0">
-            {NAV_ITEMS.map((item) => {
-              const eid = electionId ?? String(elections[0]?.id);
-              return (
-                <NavLink
-                  key={item.path}
-                  to={`/${eid}/${item.path}`}
-                  className={({ isActive }) =>
-                    `rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                      isActive
-                        ? "bg-foreground text-background"
-                        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                    }`
-                  }
-                >
-                  {item.label}
-                </NavLink>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Standalone (non-election-scoped) nav */}
-        <div className="ml-auto flex items-center gap-0.5">
+        {/* All nav items together */}
+        <div className="ml-auto flex items-center gap-0.5 md:ml-0">
+          {(electionId || elections.length > 0) && NAV_ITEMS.map((item) => {
+            const eid = electionId ?? String(elections[0]?.id);
+            return (
+              <NavLink
+                key={item.path}
+                to={`/${eid}/${item.path}`}
+                className={({ isActive }) =>
+                  `rounded px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide transition-colors ${
+                    isActive
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`
+                }
+              >
+                {item.label}
+              </NavLink>
+            );
+          })}
           {STANDALONE_NAV.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
               className={({ isActive }) =>
-                `rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                `rounded px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide transition-colors ${
                   isActive
                     ? "bg-foreground text-background"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 }`
               }
             >
               {item.label}
             </NavLink>
           ))}
+        </div>
+
+        {/* Help actions — right side */}
+        <div className="ml-auto flex items-center gap-1">
+          <NavLink
+            to="/help/coordinates"
+            className={({ isActive }) =>
+              `rounded px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide transition-colors ${
+                isActive
+                  ? "bg-foreground text-background"
+                  : "text-muted-foreground hover:text-foreground"
+              }`
+            }
+          >
+            Помогни
+          </NavLink>
           <a
             href={`${REPORT_FORM_URL}?entry.1736983913=${encodeURIComponent(window.location.href)}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            className="rounded px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-[#ce463c] transition-colors hover:bg-[#ce463c10]"
           >
             Проблем?
           </a>
