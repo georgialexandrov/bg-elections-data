@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { Map, useMap } from "@/components/ui/map";
 import Sidebar from "@/components/sidebar.js";
+import LocationCorrection from "@/components/location-correction.js";
 import MapLibreGL from "maplibre-gl";
 
 interface Election {
@@ -851,6 +852,7 @@ function BenfordDetail({ section: s, parties }: { section: RiskSection; parties:
 
 // Risk explanation sidebar content — full formula breakdown
 export function RiskSidebarContent({ section, electionId }: { section: RiskSection; electionId: string }) {
+  const [showCorrection, setShowCorrection] = useState(false);
   const s = section;
   const turnoutPct = pct2(s.turnout_rate * 100);
   const risk = s.risk_score;
@@ -1184,6 +1186,26 @@ export function RiskSidebarContent({ section, electionId }: { section: RiskSecti
           )}
         </div>
       </MethodologyCard>
+
+      {/* Location correction */}
+      <button
+        onClick={() => setShowCorrection(true)}
+        className="w-full rounded-md border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground"
+      >
+        Грешна локация
+      </button>
+
+      {showCorrection && (
+        <LocationCorrection
+          sectionCode={s.section_code}
+          electionId={electionId}
+          settlementName={s.settlement_name}
+          address={s.address}
+          currentLat={s.lat}
+          currentLng={s.lng}
+          onClose={() => setShowCorrection(false)}
+        />
+      )}
     </div>
   );
 }

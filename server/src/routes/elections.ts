@@ -305,7 +305,8 @@ elections.get("/:id/anomalies", (c) => {
   const minRisk = parseFloat(c.req.query("min_risk") ?? "0.3");
   const sort = c.req.query("sort") ?? "risk_score";
   const order = c.req.query("order") ?? "desc";
-  const limit = Math.min(Math.max(parseInt(c.req.query("limit") ?? "50", 10) || 50, 1), 500);
+  const limitParam = c.req.query("limit");
+  const limit = limitParam === "0" ? null : Math.max(parseInt(limitParam ?? "50", 10) || 50, 1);
   const offset = Math.max(parseInt(c.req.query("offset") ?? "0", 10) || 0, 0);
 
   if (!VALID_SORT_COLUMNS.includes(sort as any)) {
@@ -341,7 +342,9 @@ elections.get("/:id/anomalies", (c) => {
     filterValue = rik;
   }
 
+  const sectionCode = c.req.query("section");
   const filterClause = filterColumn && filterValue ? ` AND ${filterColumn} = ?` : "";
+  const sectionClause = sectionCode ? " AND ss.section_code LIKE ?" : "";
   const includeSpecial = c.req.query("include_special") === "true";
   const typeClause = includeSpecial ? "" : " AND ss.section_type = 'normal'";
 
@@ -352,12 +355,14 @@ elections.get("/:id/anomalies", (c) => {
   else if (methodology === "peer") riskColumn = "ss.peer_risk";
   else if (methodology === "acf") riskColumn = "ss.acf_risk";
 
-  const baseParams: unknown[] = filterColumn && filterValue ? [id, minRisk, filterValue] : [id, minRisk];
+  const baseParams: unknown[] = [id, minRisk];
+  if (filterColumn && filterValue) baseParams.push(filterValue);
+  if (sectionCode) baseParams.push(`%${sectionCode}%`);
 
   // Sort column mapping: settlement_name comes from locations table
   const sortColumn = sort === "settlement_name" ? "l.settlement_name" : sort === "section_code" ? "ss.section_code" : `ss.${sort}`;
 
-  const sql = `SELECT ss.section_code, l.settlement_name, l.lat, l.lng,
+  const sql = `SELECT ss.section_code, l.settlement_name, l.address, l.lat, l.lng,
        ss.risk_score, ss.turnout_rate, ss.turnout_zscore,
        ss.benford_chi2, ss.benford_p, ss.benford_score,
        ss.ekatte_turnout_zscore, ss.ekatte_turnout_zscore_norm,
@@ -372,20 +377,256 @@ elections.get("/:id/anomalies", (c) => {
 FROM section_scores ss
 JOIN sections s ON s.election_id = ss.election_id AND s.section_code = ss.section_code
 JOIN locations l ON l.id = s.location_id
-WHERE ss.election_id = ? AND ${riskColumn} >= ?${filterClause}${typeClause}
+WHERE ss.election_id = ? AND ${riskColumn} >= ?${filterClause}${sectionClause}${typeClause}
 ORDER BY ${sortColumn} ${orderDir}
-LIMIT ? OFFSET ?`;
+${limit != null ? "LIMIT ? OFFSET ?" : ""}`;
 
   const countSql = `SELECT COUNT(*) as total
 FROM section_scores ss
 JOIN sections s ON s.election_id = ss.election_id AND s.section_code = ss.section_code
 JOIN locations l ON l.id = s.location_id
-WHERE ss.election_id = ? AND ${riskColumn} >= ?${filterClause}${typeClause}`;
+WHERE ss.election_id = ? AND ${riskColumn} >= ?${filterClause}${sectionClause}${typeClause}`;
 
-  const sections = db.prepare(sql).all(...baseParams, limit, offset);
+  const sections = limit != null
+    ? db.prepare(sql).all(...baseParams, limit, offset)
+    : db.prepare(sql).all(...baseParams);
   const { total } = db.prepare(countSql).get(...baseParams) as { total: number };
 
   return c.json({ election, sections, total, limit, offset });
+});
+
+// All sections with top-5 party results + coordinates (for sections map)
+elections.get("/:id/sections/geo", (c) => {
+  const db = getDb();
+  const { id } = c.req.param();
+
+  const election = db
+    .prepare("SELECT id, name, date, type FROM elections WHERE id = ?")
+    .get(id) as { id: number; name: string; date: string; type: string } | undefined;
+
+  if (!election) {
+    return c.json({ error: "Election not found" }, 404);
+  }
+
+  // Geographic filter
+  const municipality = c.req.query("municipality");
+  const district = c.req.query("district");
+  const rik = c.req.query("rik");
+
+  let filterColumn: string | null = null;
+  let filterValue: string | null = null;
+
+  if (municipality) {
+    filterColumn = "l.municipality_id";
+    filterValue = municipality;
+  } else if (district) {
+    filterColumn = "l.district_id";
+    filterValue = district;
+  } else if (rik) {
+    filterColumn = "l.rik_id";
+    filterValue = rik;
+  }
+
+  const filterClause = filterColumn && filterValue ? ` AND ${filterColumn} = ?` : "";
+  const sectionParams: unknown[] = filterColumn && filterValue ? [id, filterValue] : [id];
+
+  // Step 1: All sections with voter data + coordinates
+  const sectionRows = db.prepare(`
+    SELECT s.section_code, l.settlement_name, l.lat, l.lng,
+           p.registered_voters, p.actual_voters
+    FROM sections s
+    JOIN locations l ON l.id = s.location_id
+    JOIN protocols p ON p.election_id = s.election_id AND p.section_code = s.section_code
+    WHERE s.election_id = ?${filterClause}
+  `).all(...sectionParams) as {
+    section_code: string;
+    settlement_name: string;
+    lat: number | null;
+    lng: number | null;
+    registered_voters: number;
+    actual_voters: number;
+  }[];
+
+  // Step 2: Top 5 parties per section (window function)
+  const partyRows = db.prepare(`
+    SELECT section_code, party_name, color, votes, pct FROM (
+      SELECT v.section_code, pa.canonical_name AS party_name, pa.color,
+             v.total AS votes,
+             ROUND(v.total * 100.0 / NULLIF(SUM(v.total) OVER (PARTITION BY v.section_code), 0), 1) AS pct,
+             ROW_NUMBER() OVER (PARTITION BY v.section_code ORDER BY v.total DESC) AS rn
+      FROM votes v
+      JOIN election_parties ep ON ep.election_id = v.election_id AND ep.ballot_number = v.party_number
+      JOIN parties pa ON pa.id = ep.party_id
+      JOIN sections s ON s.election_id = v.election_id AND s.section_code = v.section_code
+      JOIN locations l ON l.id = s.location_id
+      WHERE v.election_id = ?${filterClause}
+    ) ranked WHERE rn <= 5
+  `).all(...sectionParams) as {
+    section_code: string;
+    party_name: string;
+    color: string;
+    votes: number;
+    pct: number;
+  }[];
+
+  // Build lookup: section_code -> parties[]
+  const partyMap = new Map<string, { name: string; color: string; votes: number; pct: number }[]>();
+  for (const row of partyRows) {
+    let arr = partyMap.get(row.section_code);
+    if (!arr) {
+      arr = [];
+      partyMap.set(row.section_code, arr);
+    }
+    arr.push({ name: row.party_name, color: row.color, votes: row.votes, pct: row.pct });
+  }
+
+  // Combine into response
+  const sections = sectionRows
+    .filter((s) => s.lat != null && s.lng != null)
+    .map((s) => {
+      const parties = partyMap.get(s.section_code) ?? [];
+      const winner = parties[0] ?? null;
+      return {
+        section_code: s.section_code,
+        lat: s.lat,
+        lng: s.lng,
+        settlement_name: s.settlement_name,
+        registered_voters: s.registered_voters,
+        actual_voters: s.actual_voters,
+        winner_party: winner?.name ?? null,
+        winner_color: winner?.color ?? "#999",
+        winner_pct: winner?.pct ?? 0,
+        parties,
+      };
+    });
+
+  c.header("Cache-Control", "public, max-age=86400");
+  return c.json({ election, sections });
+});
+
+// Single section detail: protocol + party votes
+elections.get("/:id/sections/:code", (c) => {
+  const db = getDb();
+  const { id, code } = c.req.param();
+
+  const election = db
+    .prepare("SELECT id, name, date, type FROM elections WHERE id = ?")
+    .get(id) as { id: number; name: string; date: string; type: string } | undefined;
+  if (!election) return c.json({ error: "Election not found" }, 404);
+
+  const protocol = db.prepare(`
+    SELECT p.registered_voters, p.actual_voters, p.received_ballots,
+           p.added_voters, p.invalid_votes, p.null_votes,
+           s.machine_count
+    FROM protocols p
+    JOIN sections s ON s.election_id = p.election_id AND s.section_code = p.section_code
+    WHERE p.election_id = ? AND p.section_code = ?
+  `).get(id, code) as {
+    registered_voters: number; actual_voters: number; received_ballots: number;
+    added_voters: number; invalid_votes: number; null_votes: number;
+    machine_count: number;
+  } | undefined;
+
+  if (!protocol) return c.json({ error: "Section not found" }, 404);
+
+  const parties = db.prepare(`
+    SELECT pa.canonical_name AS name, COALESCE(pa.short_name, pa.canonical_name) AS short_name,
+           pa.color, v.total AS votes, v.paper, v.machine
+    FROM votes v
+    JOIN election_parties ep ON ep.election_id = v.election_id AND ep.ballot_number = v.party_number
+    JOIN parties pa ON pa.id = ep.party_id
+    WHERE v.election_id = ? AND v.section_code = ? AND v.total > 0
+    ORDER BY v.total DESC
+  `).all(id, code) as { name: string; short_name: string; color: string; votes: number; paper: number; machine: number }[];
+
+  const validVotes = parties.reduce((sum, p) => sum + p.votes, 0);
+
+  // --- Comparison context ---
+
+  const locInfo = db.prepare(`
+    SELECT l.ekatte, l.settlement_name, l.municipality_id, s.rik_code,
+           m.name as municipality_name
+    FROM sections s
+    JOIN locations l ON l.id = s.location_id
+    LEFT JOIN municipalities m ON m.id = l.municipality_id
+    WHERE s.election_id = ? AND s.section_code = ?
+  `).get(id, code) as { ekatte: string; settlement_name: string; municipality_id: number; rik_code: string; municipality_name: string } | undefined;
+
+  const rikAvg = locInfo ? db.prepare(`
+    SELECT AVG(ss.turnout_rate) as avg_turnout
+    FROM section_scores ss
+    JOIN sections s ON s.election_id = ss.election_id AND s.section_code = ss.section_code
+    WHERE ss.election_id = ? AND s.rik_code = ? AND ss.section_type = 'normal'
+  `).get(id, locInfo.rik_code) as { avg_turnout: number } | undefined : undefined;
+
+  const ekatteAvg = locInfo ? db.prepare(`
+    SELECT AVG(ss.turnout_rate) as avg_turnout, COUNT(*) as peer_count
+    FROM section_scores ss
+    JOIN sections s ON s.election_id = ss.election_id AND s.section_code = ss.section_code
+    JOIN locations l ON l.id = s.location_id
+    WHERE ss.election_id = ? AND l.ekatte = ? AND ss.section_type = 'normal'
+  `).get(id, locInfo.ekatte) as { avg_turnout: number; peer_count: number } | undefined : undefined;
+
+  const muniAvg = locInfo ? db.prepare(`
+    SELECT AVG(ss.turnout_rate) as avg_turnout
+    FROM section_scores ss
+    JOIN sections s ON s.election_id = ss.election_id AND s.section_code = ss.section_code
+    JOIN locations l ON l.id = s.location_id
+    WHERE ss.election_id = ? AND l.municipality_id = ? AND ss.section_type = 'normal'
+  `).get(id, locInfo.municipality_id) as { avg_turnout: number } | undefined : undefined;
+
+  const muniOutlierThresholds = locInfo ? db.prepare(`
+    SELECT
+      (SELECT ss2.turnout_rate FROM section_scores ss2
+       JOIN sections s2 ON s2.election_id = ss2.election_id AND s2.section_code = ss2.section_code
+       JOIN locations l2 ON l2.id = s2.location_id
+       WHERE ss2.election_id = ? AND l2.municipality_id = ? AND ss2.section_type = 'normal'
+       ORDER BY ss2.turnout_rate LIMIT 1 OFFSET (
+         SELECT COUNT(*) * 3 / 4 FROM section_scores ss3
+         JOIN sections s3 ON s3.election_id = ss3.election_id AND s3.section_code = ss3.section_code
+         JOIN locations l3 ON l3.id = s3.location_id
+         WHERE ss3.election_id = ? AND l3.municipality_id = ? AND ss3.section_type = 'normal'
+       )
+      ) as turnout_q3
+  `).get(id, locInfo.municipality_id, id, locInfo.municipality_id) as { turnout_q3: number } | undefined : undefined;
+
+  let prevElection: { id: number; name: string; date: string } | undefined;
+  let prevTurnout: number | undefined;
+  if (election) {
+    prevElection = db.prepare(`
+      SELECT id, name, date FROM elections
+      WHERE type = ? AND date < ? ORDER BY date DESC LIMIT 1
+    `).get(election.type, election.date) as { id: number; name: string; date: string } | undefined;
+
+    if (prevElection) {
+      const prev = db.prepare(`
+        SELECT ss.turnout_rate FROM section_scores ss
+        WHERE ss.election_id = ? AND ss.section_code = ?
+      `).get(prevElection.id, code) as { turnout_rate: number } | undefined;
+      prevTurnout = prev?.turnout_rate;
+    }
+  }
+
+  return c.json({
+    protocol: {
+      ...protocol,
+      valid_votes: validVotes,
+    },
+    parties: parties.map((p) => ({
+      ...p,
+      pct: validVotes > 0 ? (p.votes / validVotes) * 100 : 0,
+    })),
+    context: {
+      municipality_name: locInfo?.municipality_name ?? null,
+      rik_avg_turnout: rikAvg?.avg_turnout ?? null,
+      ekatte_avg_turnout: ekatteAvg?.avg_turnout ?? null,
+      ekatte_peer_count: ekatteAvg?.peer_count ?? null,
+      municipality_avg_turnout: muniAvg?.avg_turnout ?? null,
+      municipality_turnout_q3: muniOutlierThresholds?.turnout_q3 ?? null,
+      prev_election: prevElection ?? null,
+      prev_turnout: prevTurnout ?? null,
+    },
+  });
 });
 
 elections.get("/:id/results", (c) => {
