@@ -334,7 +334,7 @@ export default function DistrictPieMap() {
   return (
     <div className="relative h-full w-full">
       {/* Top-left controls */}
-      <div className="absolute top-3 left-3 z-10 flex flex-wrap items-center gap-2">
+      <div className="absolute top-2 left-2 z-10 flex flex-wrap items-center gap-1.5 md:top-3 md:left-3 md:gap-2">
         {loading && !election && (
           <div className="rounded-md border bg-background/95 px-3 py-2 shadow-md backdrop-blur-sm">
             <span className="text-xs text-muted-foreground">Зареждане...</span>

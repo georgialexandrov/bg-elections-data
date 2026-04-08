@@ -33,6 +33,7 @@ export interface RiskSection {
   peer_vote_deviation_norm: number;
   arithmetic_error: number;
   vote_sum_mismatch: number;
+  protocol_violation_count: number;
   acf_turnout_outlier: number;
   acf_winner_outlier: number;
   acf_invalid_outlier: number;
@@ -57,7 +58,7 @@ interface GeoEntity {
   name: string;
 }
 
-type Methodology = "combined" | "benford" | "peer" | "acf";
+type Methodology = "combined" | "benford" | "peer" | "acf" | "protocol";
 
 interface SectionGeo {
   section_code: string;
@@ -98,6 +99,13 @@ function buildProtocolLinks(sectionCode: string, electionId: number) {
   return null;
 }
 
+const SECTION_TYPE_LABELS: Record<string, string> = {
+  mobile: "Подвижна",
+  hospital: "Болница",
+  abroad: "Чужбина",
+  prison: "Затвор",
+};
+
 const BULGARIA_CENTER: [number, number] = [25.5, 42.7];
 const BULGARIA_ZOOM = 7;
 
@@ -108,6 +116,7 @@ const CIRCLE_LAYER = "risk-circles";
 const CIRCLE_HOVER_LAYER = "risk-circles-hover";
 const MUNI_SOURCE = "municipality-boundaries";
 const MUNI_BORDER_LAYER = "municipality-borders";
+const SELECTED_LAYER = "selected-section-ring";
 
 // Offset overlapping sections so they don't stack on the same point.
 // Uses a sunflower spiral: golden-angle spacing with increasing radius.
@@ -153,6 +162,7 @@ function getRiskValue(s: RiskSection, methodology: Methodology): number {
     case "benford": return s.benford_risk ?? 0;
     case "peer": return s.peer_risk ?? 0;
     case "acf": return s.acf_risk ?? 0;
+    case "protocol": return s.protocol_violation_count > 0 ? 1 : 0;
     default: return s.risk_score ?? 0;
   }
 }
@@ -413,6 +423,59 @@ function CircleClickHandler({
   return null;
 }
 
+// Highlight ring around the selected section
+function SelectedSectionHighlight({ sectionCode }: { sectionCode: string | null }) {
+  const { map, isLoaded } = useMap();
+
+  useEffect(() => {
+    if (!map || !isLoaded) return;
+
+    // Add ring layers on both sources (base circles + risk triangles)
+    const sources = [
+      { source: BASE_SOURCE, id: `${SELECTED_LAYER}-base` },
+      { source: CIRCLE_SOURCE, id: `${SELECTED_LAYER}-risk` },
+    ];
+
+    for (const { source, id } of sources) {
+      if (!map.getSource(source)) continue;
+      if (!map.getLayer(id)) {
+        map.addLayer({
+          id,
+          type: "circle",
+          source,
+          paint: {
+            "circle-radius": [
+              "interpolate", ["linear"], ["zoom"],
+              6, 8,
+              9, 14,
+              12, 20,
+              15, 28,
+            ],
+            "circle-color": "transparent",
+            "circle-stroke-width": 2.5,
+            "circle-stroke-color": "#3b82f6",
+          },
+          filter: ["==", "section_code", ""],
+        });
+      }
+      map.setFilter(id, sectionCode ? ["==", "section_code", sectionCode] : ["==", "section_code", ""]);
+    }
+  }, [map, isLoaded, sectionCode]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (!map) return;
+      const ids = [`${SELECTED_LAYER}-base`, `${SELECTED_LAYER}-risk`];
+      for (const id of ids) {
+        try { if (map.getLayer(id)) map.removeLayer(id); } catch { /* */ }
+      }
+    };
+  }, [map]);
+
+  return null;
+}
+
 // Base layer: all sections colored by winner party
 function AllSectionsLayer({
   sections,
@@ -664,6 +727,56 @@ function useSectionDetail(electionId: string, sectionCode: string) {
   return { data, loading };
 }
 
+interface Violation {
+  rule_id: string;
+  description: string;
+  expected_value: string;
+  actual_value: string;
+  severity: string;
+}
+
+function useViolations(electionId: string, sectionCode: string) {
+  const [violations, setViolations] = useState<Violation[]>([]);
+
+  useEffect(() => {
+    setViolations([]);
+    fetch(`/api/elections/${electionId}/violations/${sectionCode}`)
+      .then((r) => r.ok ? r.json() : { violations: [] })
+      .then((d: { violations: Violation[] }) => setViolations(d.violations))
+      .catch(() => {});
+  }, [electionId, sectionCode]);
+
+  return violations;
+}
+
+function ViolationsSection({ violations }: { violations: Violation[] }) {
+  if (violations.length === 0) return null;
+
+  return (
+    <div className="space-y-1.5">
+      <div className="text-xs font-medium">Нарушения в протокола ({violations.length})</div>
+      {violations.map((v, i) => (
+        <div
+          key={i}
+          className={`rounded-lg border p-2 text-[11px] ${
+            v.severity === "error"
+              ? "border-red-200 bg-red-50"
+              : "border-yellow-200 bg-yellow-50"
+          }`}
+        >
+          <div className="font-medium">
+            <span className="font-mono text-[10px] text-muted-foreground">{v.rule_id}</span>{" "}
+            {v.description}
+          </div>
+          <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+            очаквано: {v.expected_value} → получено: {v.actual_value}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SectionResults({ data, loading, electionId, sectionCode }: { data: SectionDetail | null; loading: boolean; electionId: string; sectionCode: string }) {
   if (loading) return <div className="text-xs text-muted-foreground">Зареждане на резултати...</div>;
   if (!data) return null;
@@ -892,6 +1005,7 @@ export function RiskSidebarContent({ section, electionId }: { section: RiskSecti
   const turnoutPct = pct2(s.turnout_rate * 100);
   const risk = s.risk_score;
   const { data: sectionDetail, loading: detailLoading } = useSectionDetail(electionId, s.section_code);
+  const violations = useViolations(electionId, s.section_code);
   const ctx = sectionDetail?.context ?? null;
 
   const riskLabel = risk >= 0.6
@@ -904,8 +1018,12 @@ export function RiskSidebarContent({ section, electionId }: { section: RiskSecti
     <div className="space-y-4">
       {/* Header */}
       <div>
-        <div className="text-lg font-bold">{s.section_code}</div>
-        <div className="text-sm text-muted-foreground">{s.settlement_name}</div>
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <span>{s.settlement_name}</span>
+          {SECTION_TYPE_LABELS[s.section_type] && (
+            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">{SECTION_TYPE_LABELS[s.section_type]}</span>
+          )}
+        </div>
         {s.address && (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span>{s.address}</span>
@@ -1026,6 +1144,9 @@ export function RiskSidebarContent({ section, electionId }: { section: RiskSecti
           ) : null}
         </div>
       ) : null}
+
+      {/* === PROTOCOL VIOLATIONS === */}
+      <ViolationsSection violations={violations} />
 
       {/* === BENFORD === */}
       <MethodologyCard title="Закон на Бенфорд" score={s.benford_risk}>
@@ -1337,8 +1458,8 @@ export default function RiskMap() {
     setRiskLoading(true);
 
     const params = new URLSearchParams();
-    params.set("min_risk", String(minRisk));
-    params.set("sort", "risk_score");
+    params.set("min_risk", methodology === "protocol" ? "1" : String(minRisk));
+    params.set("sort", methodology === "protocol" ? "protocol_violation_count" : "risk_score");
     params.set("order", "desc");
     params.set("limit", "0");
     if (methodology !== "combined") params.set("methodology", methodology);
@@ -1376,6 +1497,7 @@ export default function RiskMap() {
     { key: "benford", label: "Benford" },
     { key: "peer", label: "Peer" },
     { key: "acf", label: "ACF" },
+    { key: "protocol", label: "Протокол" },
   ];
 
   return (
@@ -1398,10 +1520,11 @@ export default function RiskMap() {
             <CircleClickHandler onSectionClick={handleSectionClick} />
           </>
         )}
+        <SelectedSectionHighlight sectionCode={selectedCode || null} />
       </Map>
 
       {/* Floating filter panel — top left */}
-      <div className="absolute top-3 left-3 z-10 flex min-w-[280px] max-w-[320px] flex-col gap-0 rounded-lg border border-border bg-background/96 shadow-lg backdrop-blur-sm">
+      <div className="absolute top-2 left-2 right-2 z-10 flex max-w-[320px] flex-col gap-0 rounded-lg border border-border bg-background/96 shadow-lg backdrop-blur-sm md:left-3 md:right-auto md:top-3 md:min-w-[280px]">
         {/* Section 1: Location filter */}
         <div className="flex flex-col gap-2.5 p-3.5 pb-3">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Местоположение</div>
@@ -1533,7 +1656,7 @@ export default function RiskMap() {
 
       {/* Legend — bottom left (only when risk overlay is active) */}
       {riskActive && (
-        <div className="absolute bottom-4 left-3 z-10 rounded-lg border border-border bg-background/94 p-3 text-[11px] shadow-md backdrop-blur-sm">
+        <div className="absolute bottom-2 left-2 z-10 rounded-lg border border-border bg-background/94 p-2 text-[11px] shadow-md backdrop-blur-sm md:bottom-4 md:left-3 md:p-3">
           <div className="mb-1.5 font-semibold text-muted-foreground">Ниво на риск</div>
           {[
             { size: "h-2.5 w-2.5", color: "bg-yellow-400", label: "0.3 — Нисък" },

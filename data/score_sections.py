@@ -89,6 +89,9 @@ CREATE TABLE IF NOT EXISTS section_scores (
     acf_party_shift             REAL,
     acf_party_shift_norm        REAL DEFAULT 0,
 
+    -- Protocol violation count (from protocol_violations table)
+    protocol_violation_count INTEGER DEFAULT 0,
+
     -- Composite scores per methodology
     risk_score              REAL,
     benford_risk            REAL DEFAULT 0,
@@ -102,6 +105,24 @@ CREATE TABLE IF NOT EXISTS section_scores (
 CREATE INDEX IF NOT EXISTS idx_scores_election ON section_scores(election_id);
 CREATE INDEX IF NOT EXISTS idx_scores_section  ON section_scores(section_code);
 CREATE INDEX IF NOT EXISTS idx_scores_risk     ON section_scores(risk_score DESC);
+"""
+
+VIOLATIONS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS protocol_violations (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    election_id      INTEGER NOT NULL,
+    section_code     TEXT    NOT NULL,
+    rule_id          TEXT    NOT NULL,
+    description      TEXT    NOT NULL,
+    expected_value   TEXT,
+    actual_value     TEXT,
+    severity         TEXT    DEFAULT 'warning',
+    FOREIGN KEY (election_id) REFERENCES elections(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_violations_election ON protocol_violations(election_id);
+CREATE INDEX IF NOT EXISTS idx_violations_section  ON protocol_violations(section_code);
+CREATE INDEX IF NOT EXISTS idx_violations_election_section ON protocol_violations(election_id, section_code);
 """
 
 HISTORY_VIEW = """
@@ -118,6 +139,7 @@ SELECT
     ROUND(MAX(sc.risk_score), 4)                AS max_risk_score,
     SUM(sc.arithmetic_error)                    AS total_arithmetic_errors,
     SUM(sc.vote_sum_mismatch)                   AS total_vote_mismatches,
+    SUM(sc.protocol_violation_count)            AS total_protocol_violations,
     ROUND(AVG(sc.ekatte_turnout_zscore_norm),4) AS avg_ekatte_turnout_anomaly,
     ROUND(AVG(sc.peer_vote_deviation_norm), 4)  AS avg_peer_vote_anomaly,
     ROUND(AVG(sc.acf_risk), 4)                  AS avg_acf_risk
@@ -480,14 +502,17 @@ def score_election(conn, election_id, prev_election_id=None):
 
     # --- Section classification ---
     cur.execute("""
-        SELECT s.section_code, s.rik_code, l.address, l.ekatte, l.municipality_id
+        SELECT s.section_code, s.rik_code, l.address, l.ekatte, l.municipality_id,
+               s.protocol_address
         FROM sections s
         JOIN locations l ON l.id = s.location_id
         WHERE s.election_id = ?
     """, (election_id,))
     section_info = {}
-    for sc, rik, addr, ekatte, muni_id in cur.fetchall():
-        stype = classify_section(rik, addr)
+    for sc, rik, addr, ekatte, muni_id, proto_addr in cur.fetchall():
+        # Use protocol_address (raw CIK) for classification — it contains
+        # institution names (МБАЛ, затвор, etc.) that geocoded addresses lose
+        stype = classify_section(rik, proto_addr or addr)
         section_info[sc] = {
             'type': stype, 'rik': rik, 'address': addr,
             'ekatte': ekatte, 'municipality_id': muni_id
@@ -690,6 +715,7 @@ def score_election(conn, election_id, prev_election_id=None):
             round(s8_norm, 4),
             round(s9_party_shift, 4) if s9_party_shift is not None else None,
             round(s9_norm, 4),
+            0,  # protocol_violation_count (updated after validate_protocols)
             # Composites
             risk,
             benford_risk_val,
@@ -712,6 +738,7 @@ def score_election(conn, election_id, prev_election_id=None):
             0.0, 0.0, 0.0, 0.0,  # no ekatte/peer
             0.0, 0.0, 0.0, 0.0,  # no ACF multi
             None, 0.0, None, 0.0,  # no ACF temporal
+            0,  # protocol_violation_count
             0.0, 0.0, 0.0, 0.0,  # all composites zero
         ))
 
@@ -726,11 +753,188 @@ def score_election(conn, election_id, prev_election_id=None):
             acf_turnout_outlier, acf_winner_outlier, acf_invalid_outlier, acf_multicomponent,
             acf_turnout_shift, acf_turnout_shift_norm,
             acf_party_shift, acf_party_shift_norm,
+            protocol_violation_count,
             risk_score, benford_risk, peer_risk, acf_risk
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """, rows)
     conn.commit()
     return len(rows)
+
+
+def validate_protocols(conn, election_id):
+    """
+    Run section-level protocol arithmetic checks and store violations.
+    Returns count of violations found.
+
+    Rules implemented:
+      R3.1  SUM(party votes) ≠ actual_voters - invalid - null (total valid)
+      R3.2  SUM(paper votes) ≠ total_paper_valid (when paper+machine split exists)
+      R3.3  SUM(machine votes) ≠ total_machine_valid (when paper+machine split exists)
+      R4.1  SUM(preferences for party) ≠ votes for that party
+      R7.1  received_ballots outside (0, 1500]
+      R7.4  Any party votes > actual_voters
+      R7.5  Any preference count > votes for that party
+    """
+    cur = conn.cursor()
+    violations = []
+
+    # Load protocols
+    protos = {}
+    for row in cur.execute("""
+        SELECT section_code, received_ballots, actual_voters, invalid_votes, null_votes, form_num
+        FROM protocols WHERE election_id = ?
+    """, (election_id,)):
+        sc, received, actual, invalid, null_v, form_num = row
+        protos[sc] = {
+            'received': received or 0,
+            'actual': actual or 0,
+            'invalid': invalid or 0,
+            'null': null_v or 0,
+            'form_num': form_num,
+        }
+
+    # Load votes per section
+    votes_by_section = defaultdict(list)
+    for sc, party, total, paper, machine in cur.execute("""
+        SELECT section_code, party_number, total, paper, machine
+        FROM votes WHERE election_id = ?
+    """, (election_id,)):
+        votes_by_section[sc].append({
+            'party': party, 'total': total or 0,
+            'paper': paper or 0, 'machine': machine or 0,
+        })
+
+    # Load preferences per section+party (only for elections that have them)
+    has_prefs = cur.execute(
+        "SELECT COUNT(*) FROM preferences WHERE election_id = ? LIMIT 1",
+        (election_id,)
+    ).fetchone()[0] > 0
+
+    pref_sums = defaultdict(lambda: defaultdict(int))  # section -> party -> sum
+    if has_prefs:
+        for sc, party, total in cur.execute("""
+            SELECT section_code, party_number, SUM(total)
+            FROM preferences WHERE election_id = ?
+            GROUP BY section_code, party_number
+        """, (election_id,)):
+            pref_sums[sc][party] = total or 0
+
+    for sc, proto in protos.items():
+        votes = votes_by_section.get(sc, [])
+        actual = proto['actual']
+        expected_valid = actual - proto['invalid'] - proto['null']
+
+        # R3.1: SUM(party votes) ≠ total valid
+        vote_sum = sum(v['total'] for v in votes)
+        if vote_sum != expected_valid and expected_valid > 0:
+            violations.append((election_id, sc, 'R3.1',
+                'Сума гласове по партии ≠ общо валидни в протокола',
+                str(expected_valid), str(vote_sum),
+                'error' if abs(vote_sum - expected_valid) > 5 else 'warning'))
+
+        # R3.2 / R3.3: paper/machine split checks (only for machine-form protocols)
+        # Machine forms (form_num 26, 28, 30) have separate paper and machine columns
+        is_machine_form = proto.get('form_num') in (26, 28, 30)
+        if is_machine_form and votes:
+            paper_sum = sum(v['paper'] for v in votes)
+            machine_sum = sum(v['machine'] for v in votes)
+
+            # R3.2: paper vote sum mismatch
+            if paper_sum > 0:
+                expected_paper = expected_valid - machine_sum
+                if expected_paper >= 0 and paper_sum != expected_paper:
+                    violations.append((election_id, sc, 'R3.2',
+                        'Сума хартиени гласове ≠ хартиени валидни в протокола (машинен формуляр)',
+                        str(expected_paper), str(paper_sum),
+                        'warning'))
+
+            # R3.3: machine vote sum mismatch
+            if machine_sum > 0:
+                expected_machine = expected_valid - paper_sum
+                if expected_machine >= 0 and machine_sum != expected_machine:
+                    violations.append((election_id, sc, 'R3.3',
+                        'Сума машинни гласове ≠ машинни валидни в протокола (машинен формуляр)',
+                        str(expected_machine), str(machine_sum),
+                        'warning'))
+
+        # R7.1: received_ballots outside (0, 1500]
+        received = proto['received']
+        if received > 1500:
+            violations.append((election_id, sc, 'R7.1',
+                'Получени бюлетини извън допустимия диапазон (0, 1500]',
+                '0 < received_ballots ≤ 1500', str(received),
+                'error'))
+        elif received <= 0 and actual > 0:
+            violations.append((election_id, sc, 'R7.1',
+                'Получени бюлетини извън допустимия диапазон (0, 1500]',
+                '0 < received_ballots ≤ 1500', str(received),
+                'warning'))
+
+        # R7.4: party votes > actual_voters
+        for v in votes:
+            if v['total'] > actual and actual > 0:
+                violations.append((election_id, sc, 'R7.4',
+                    f"Партия {v['party']}: гласове за партията надвишават гласувалите",
+                    f"≤ {actual}", str(v['total']),
+                    'error'))
+
+        # R4.1: SUM(preferences) ≠ party votes
+        if has_prefs and sc in pref_sums:
+            # Build map of party -> votes for this section
+            party_vote_map = {v['party']: v['total'] for v in votes}
+            # Check all parties that have preferences
+            for party_num, pref_total in pref_sums[sc].items():
+                party_votes = party_vote_map.get(party_num, 0)
+                if pref_total != party_votes:
+                    violations.append((election_id, sc, 'R4.1',
+                        f"Партия {party_num}: сума преференции ≠ гласове за партията",
+                        str(party_votes), str(pref_total),
+                        'error' if abs(pref_total - party_votes) > 5 else 'warning'))
+
+        # R7.5: preference > party votes
+        if has_prefs and sc in pref_sums:
+            # Need per-candidate preferences, not just sums
+            pass  # Already covered by R4.1 at aggregate level
+
+    # Check R7.5 with per-candidate data
+    if has_prefs:
+        for sc, party, cand, total in cur.execute("""
+            SELECT section_code, party_number, candidate_number, total
+            FROM preferences WHERE election_id = ?
+        """, (election_id,)):
+            total = total or 0
+            if total == 0:
+                continue
+            party_votes = 0
+            for v in votes_by_section.get(sc, []):
+                if v['party'] == party:
+                    party_votes = v['total']
+                    break
+            if total > party_votes and party_votes >= 0:
+                violations.append((election_id, sc, 'R7.5',
+                    f"Партия {party}, кандидат {cand}: преференции надвишават гласовете за партията",
+                    f"≤ {party_votes}", str(total),
+                    'error'))
+
+    # Insert violations
+    if violations:
+        cur.executemany("""
+            INSERT INTO protocol_violations
+                (election_id, section_code, rule_id, description, expected_value, actual_value, severity)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, violations)
+
+    # Update violation counts in section_scores
+    cur.execute("""
+        UPDATE section_scores SET protocol_violation_count = (
+            SELECT COUNT(*) FROM protocol_violations pv
+            WHERE pv.election_id = section_scores.election_id
+              AND pv.section_code = section_scores.section_code
+        ) WHERE election_id = ?
+    """, (election_id,))
+
+    conn.commit()
+    return len(violations)
 
 
 def main():
@@ -738,7 +942,9 @@ def main():
 
     print("Recreating schema...")
     conn.execute("DROP TABLE IF EXISTS section_scores")
+    conn.execute("DROP TABLE IF EXISTS protocol_violations")
     conn.executescript(SCHEMA)
+    conn.executescript(VIOLATIONS_SCHEMA)
 
     cur = conn.cursor()
     cur.execute("SELECT id, slug, date, type FROM elections ORDER BY date")
@@ -764,7 +970,13 @@ def main():
         n = score_election(conn, eid, prev_eid)
         print(f"    {n} sections scored")
 
-    print("Creating history view...")
+    print("\nRunning protocol validation...")
+    for eid, slug, date, etype in elections:
+        nv = validate_protocols(conn, eid)
+        if nv > 0:
+            print(f"  {slug}: {nv} violations")
+
+    print("\nCreating history view...")
     conn.executescript(HISTORY_VIEW)
 
     # Create indexes

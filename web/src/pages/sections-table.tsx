@@ -8,13 +8,29 @@ function pct2(value: number): string {
   return (Math.floor(value * 100) / 100).toFixed(2);
 }
 
+const SECTION_TYPE_LABELS: Record<string, string> = {
+  mobile: "Подвижна",
+  hospital: "Болница",
+  abroad: "Чужбина",
+  prison: "Затвор",
+};
+
 interface GeoEntity {
   id: number;
   name: string;
 }
 
+interface Violation {
+  rule_id: string;
+  description: string;
+  expected_value: string;
+  actual_value: string;
+  severity: string;
+}
+
 type Methodology = "combined" | "benford" | "peer" | "acf";
-type SortColumn = "risk_score" | "benford_risk" | "peer_risk" | "acf_risk" | "turnout_rate" | "section_code" | "settlement_name";
+type ViolationFilter = "all" | "with_violations";
+type SortColumn = "risk_score" | "benford_risk" | "peer_risk" | "acf_risk" | "turnout_rate" | "section_code" | "settlement_name" | "protocol_violation_count";
 
 function RiskBadge({ value }: { value: number }) {
   const bg =
@@ -34,22 +50,57 @@ function SortHeader({
   currentSort,
   currentOrder,
   onSort,
+  className,
 }: {
   label: string;
   column: SortColumn;
   currentSort: SortColumn;
   currentOrder: "asc" | "desc";
   onSort: (col: SortColumn) => void;
+  className?: string;
 }) {
   const active = currentSort === column;
   return (
     <th
-      className="cursor-pointer select-none whitespace-nowrap px-2 py-2 text-left text-[11px] font-medium text-muted-foreground hover:text-foreground"
+      className={`cursor-pointer select-none whitespace-nowrap px-2 py-2 text-left text-[11px] font-medium text-muted-foreground hover:text-foreground ${className ?? ""}`}
       onClick={() => onSort(column)}
     >
       {label}
       {active && <span className="ml-0.5">{currentOrder === "desc" ? "↓" : "↑"}</span>}
     </th>
+  );
+}
+
+function ViolationDetail({ electionId, sectionCode }: { electionId: string; sectionCode: string }) {
+  const [violations, setViolations] = useState<Violation[] | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/elections/${electionId}/violations/${sectionCode}`)
+      .then((r) => r.ok ? r.json() : { violations: [] })
+      .then((d: { violations: Violation[] }) => setViolations(d.violations))
+      .catch(() => setViolations([]));
+  }, [electionId, sectionCode]);
+
+  if (violations === null) return <span className="text-[10px] text-muted-foreground">...</span>;
+  if (violations.length === 0) return null;
+
+  return (
+    <div className="mt-1 space-y-0.5">
+      {violations.map((v, i) => (
+        <div
+          key={i}
+          className={`rounded px-2 py-1 text-[10px] ${
+            v.severity === "error" ? "bg-red-50 text-red-800" : "bg-yellow-50 text-yellow-800"
+          }`}
+        >
+          <span className="font-mono font-semibold">{v.rule_id}</span>{" "}
+          {v.description}
+          <span className="ml-2 text-muted-foreground">
+            ({v.expected_value} → {v.actual_value})
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -62,12 +113,14 @@ export default function SectionsTable() {
   const sort = (searchParams.get("sort") ?? "risk_score") as SortColumn;
   const order = (searchParams.get("order") ?? "desc") as "asc" | "desc";
   const methodology = (searchParams.get("m") ?? "combined") as Methodology;
+  const violationFilter = (searchParams.get("v") ?? "all") as ViolationFilter;
   const minRisk = parseFloat(searchParams.get("risk") ?? "0");
   const district = searchParams.get("district") ?? "";
   const municipality = searchParams.get("municipality") ?? "";
   const sectionFilter = searchParams.get("q") ?? "";
   const page = parseInt(searchParams.get("page") ?? "0", 10);
   const selectedCode = searchParams.get("section") ?? "";
+  const expandedCode = searchParams.get("expand") ?? "";
 
   const setParam = useCallback((key: string, value: string) => {
     setSearchParams((prev) => {
@@ -118,6 +171,7 @@ export default function SectionsTable() {
     params.set("limit", String(PAGE_SIZE));
     params.set("offset", String(page * PAGE_SIZE));
     if (methodology !== "combined") params.set("methodology", methodology);
+    if (violationFilter === "with_violations") params.set("min_violations", "1");
     if (municipality) params.set("municipality", municipality);
     else if (district) params.set("district", district);
     if (sectionFilter) params.set("section", sectionFilter);
@@ -130,7 +184,7 @@ export default function SectionsTable() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [electionId, sort, order, methodology, minRisk, district, municipality, sectionFilter, page]);
+  }, [electionId, sort, order, methodology, violationFilter, minRisk, district, municipality, sectionFilter, page]);
 
   const selectedSection = selectedCode ? sections.find((s) => s.section_code === selectedCode) ?? null : null;
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -142,10 +196,15 @@ export default function SectionsTable() {
     { key: "acf", label: "ACF" },
   ];
 
+  const violationFilters: { key: ViolationFilter; label: string }[] = [
+    { key: "all", label: "Всички" },
+    { key: "with_violations", label: "С нарушения" },
+  ];
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Filters bar */}
-      <div className="flex flex-wrap items-end gap-3 border-b border-border bg-background px-4 py-2.5">
+      <div className="flex flex-wrap items-end gap-2 border-b border-border bg-background px-2 py-2 md:gap-3 md:px-4 md:py-2.5">
         {/* Risk threshold */}
         <div>
           <div className="mb-0.5 text-[11px] text-muted-foreground">
@@ -170,7 +229,7 @@ export default function SectionsTable() {
           />
         </div>
 
-        {/* Methodology */}
+        {/* Risk Methodology */}
         <div>
           <div className="mb-0.5 text-[11px] text-muted-foreground">Методология</div>
           <div className="flex gap-0.5">
@@ -185,6 +244,34 @@ export default function SectionsTable() {
                 }`}
               >
                 {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Protocol violations filter */}
+        <div>
+          <div className="mb-0.5 text-[11px] text-muted-foreground">Протокол</div>
+          <div className="flex gap-0.5">
+            {violationFilters.map((f) => (
+              <button
+                key={f.key}
+                onClick={() => {
+                  setSearchParams((prev) => {
+                    const next = new URLSearchParams(prev);
+                    if (f.key === "all") next.delete("v");
+                    else next.set("v", f.key);
+                    next.delete("page");
+                    return next;
+                  }, { replace: true });
+                }}
+                className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                  violationFilter === f.key
+                    ? "bg-red-600 text-white"
+                    : "bg-secondary text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {f.label}
               </button>
             ))}
           </div>
@@ -266,38 +353,72 @@ export default function SectionsTable() {
               <SortHeader label="Населено място" column="settlement_name" currentSort={sort} currentOrder={order} onSort={setSort} />
               <SortHeader label="Активност" column="turnout_rate" currentSort={sort} currentOrder={order} onSort={setSort} />
               <SortHeader label="Комб. риск" column="risk_score" currentSort={sort} currentOrder={order} onSort={setSort} />
-              <SortHeader label="Benford" column="benford_risk" currentSort={sort} currentOrder={order} onSort={setSort} />
-              <SortHeader label="Peer" column="peer_risk" currentSort={sort} currentOrder={order} onSort={setSort} />
-              <SortHeader label="ACF" column="acf_risk" currentSort={sort} currentOrder={order} onSort={setSort} />
+              <SortHeader label="Benford" column="benford_risk" currentSort={sort} currentOrder={order} onSort={setSort} className="hidden md:table-cell" />
+              <SortHeader label="Peer" column="peer_risk" currentSort={sort} currentOrder={order} onSort={setSort} className="hidden md:table-cell" />
+              <SortHeader label="ACF" column="acf_risk" currentSort={sort} currentOrder={order} onSort={setSort} className="hidden md:table-cell" />
+              <SortHeader label="Нарушения" column="protocol_violation_count" currentSort={sort} currentOrder={order} onSort={setSort} />
               <th className="whitespace-nowrap px-2 py-2 text-left text-[11px] font-medium text-muted-foreground">Флагове</th>
             </tr>
           </thead>
           <tbody>
             {sections.map((s) => (
-              <tr
-                key={s.section_code}
-                onClick={() => setParam("section", selectedCode === s.section_code ? "" : s.section_code)}
-                className={`cursor-pointer border-b border-border/50 transition-colors hover:bg-secondary/50 ${
-                  selectedCode === s.section_code ? "bg-secondary" : ""
-                }`}
-              >
-                <td className="whitespace-nowrap px-2 py-1.5 font-mono tabular-nums">{s.section_code}</td>
-                <td className="max-w-[200px] truncate px-2 py-1.5" title={s.settlement_name}>{s.settlement_name}</td>
-                <td className="whitespace-nowrap px-2 py-1.5 font-mono tabular-nums">{pct2(s.turnout_rate * 100)}%</td>
-                <td className="whitespace-nowrap px-2 py-1.5"><RiskBadge value={s.risk_score} /></td>
-                <td className="whitespace-nowrap px-2 py-1.5"><RiskBadge value={s.benford_risk} /></td>
-                <td className="whitespace-nowrap px-2 py-1.5"><RiskBadge value={s.peer_risk} /></td>
-                <td className="whitespace-nowrap px-2 py-1.5"><RiskBadge value={s.acf_risk} /></td>
-                <td className="whitespace-nowrap px-2 py-1.5">
-                  {s.arithmetic_error ? <span className="mr-1 rounded bg-red-100 px-1 py-0.5 text-[10px] text-red-700">АГ</span> : null}
-                  {s.vote_sum_mismatch ? <span className="mr-1 rounded bg-red-100 px-1 py-0.5 text-[10px] text-red-700">НС</span> : null}
-                  {s.acf_multicomponent >= 1 ? <span className="rounded bg-orange-100 px-1 py-0.5 text-[10px] text-orange-700">ACF×3</span> : null}
-                </td>
-              </tr>
+              <>
+                <tr
+                  key={s.section_code}
+                  onClick={() => setParam("section", selectedCode === s.section_code ? "" : s.section_code)}
+                  className={`cursor-pointer border-b border-border/50 transition-colors hover:bg-secondary/50 ${
+                    selectedCode === s.section_code ? "bg-secondary" : ""
+                  }`}
+                >
+                  <td className="whitespace-nowrap px-2 py-1.5 font-mono tabular-nums">{s.section_code}</td>
+                  <td className="max-w-[200px] px-2 py-1.5" title={s.settlement_name}>
+                    <span className="flex items-center gap-1">
+                      <span className="truncate">{s.settlement_name}</span>
+                      {SECTION_TYPE_LABELS[s.section_type] && (
+                        <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-[10px] font-medium">{SECTION_TYPE_LABELS[s.section_type]}</span>
+                      )}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-2 py-1.5 font-mono tabular-nums">{pct2(s.turnout_rate * 100)}%</td>
+                  <td className="whitespace-nowrap px-2 py-1.5"><RiskBadge value={s.risk_score} /></td>
+                  <td className="hidden whitespace-nowrap px-2 py-1.5 md:table-cell"><RiskBadge value={s.benford_risk} /></td>
+                  <td className="hidden whitespace-nowrap px-2 py-1.5 md:table-cell"><RiskBadge value={s.peer_risk} /></td>
+                  <td className="hidden whitespace-nowrap px-2 py-1.5 md:table-cell"><RiskBadge value={s.acf_risk} /></td>
+                  <td className="whitespace-nowrap px-2 py-1.5">
+                    {s.protocol_violation_count > 0 ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setParam("expand", expandedCode === s.section_code ? "" : s.section_code);
+                        }}
+                        className={`rounded px-1.5 py-0.5 text-[11px] font-mono font-semibold tabular-nums ${
+                          s.protocol_violation_count >= 3 ? "bg-red-100 text-red-800" : "bg-orange-100 text-orange-800"
+                        }`}
+                      >
+                        {s.protocol_violation_count} {expandedCode === s.section_code ? "▲" : "▼"}
+                      </button>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground/40">0</span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-2 py-1.5">
+                    {s.arithmetic_error ? <span className="mr-1 rounded bg-red-100 px-1 py-0.5 text-[10px] text-red-700">АГ</span> : null}
+                    {s.vote_sum_mismatch ? <span className="mr-1 rounded bg-red-100 px-1 py-0.5 text-[10px] text-red-700">НС</span> : null}
+                    {s.acf_multicomponent >= 1 ? <span className="rounded bg-orange-100 px-1 py-0.5 text-[10px] text-orange-700">ACF×3</span> : null}
+                  </td>
+                </tr>
+                {expandedCode === s.section_code && s.protocol_violation_count > 0 && electionId && (
+                  <tr key={`${s.section_code}-expand`} className="border-b border-border/50">
+                    <td colSpan={9} className="bg-muted/30 px-2 py-2">
+                      <ViolationDetail electionId={electionId} sectionCode={s.section_code} />
+                    </td>
+                  </tr>
+                )}
+              </>
             ))}
             {!loading && sections.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
                   Няма секции, отговарящи на филтрите
                 </td>
               </tr>

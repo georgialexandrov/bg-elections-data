@@ -40,9 +40,10 @@ createRoot(document.getElementById("root")!).render(
           <Route path="/:electionId/results" element={<DistrictPieMap />} />
           <Route path="/:electionId/sections" element={<RiskMap />} />
           <Route path="/:electionId/table" element={<SectionsTable />} />
-          <Route path="/compare" element={<CompareElections />} />
-          <Route path="/parties" element={<PartyList />} />
-          <Route path="/parties/:id" element={<PartyProfile />} />
+          {/* Hidden for now — not ready for public release */}
+          {/* <Route path="/compare" element={<CompareElections />} /> */}
+          {/* <Route path="/parties" element={<PartyList />} /> */}
+          {/* <Route path="/parties/:id" element={<PartyProfile />} /> */}
 
           {/* Keep old pages accessible for now */}
           <Route path="/elections/:id/details" element={<ElectionResults />} />

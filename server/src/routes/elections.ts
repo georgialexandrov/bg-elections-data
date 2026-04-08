@@ -284,6 +284,7 @@ ORDER BY group_name`;
 const VALID_SORT_COLUMNS = [
   "risk_score", "turnout_rate", "turnout_zscore", "benford_score",
   "peer_vote_deviation", "arithmetic_error", "vote_sum_mismatch",
+  "protocol_violation_count",
   "section_code", "settlement_name",
   "benford_risk", "peer_risk", "acf_risk",
   "acf_multicomponent", "acf_turnout_shift_norm", "acf_party_shift_norm",
@@ -349,13 +350,19 @@ elections.get("/:id/anomalies", (c) => {
   const typeClause = includeSpecial ? "" : " AND ss.section_type = 'normal'";
 
   // Which risk column to filter by? Depends on methodology query param
-  const methodology = c.req.query("methodology"); // "benford", "peer", "acf", or default (combined)
+  const methodology = c.req.query("methodology"); // "benford", "peer", "acf", "protocol", or default (combined)
   let riskColumn = "ss.risk_score";
   if (methodology === "benford") riskColumn = "ss.benford_risk";
   else if (methodology === "peer") riskColumn = "ss.peer_risk";
   else if (methodology === "acf") riskColumn = "ss.acf_risk";
+  else if (methodology === "protocol") riskColumn = "ss.protocol_violation_count";
+
+  // Separate protocol violations filter (additive with methodology)
+  const minViolations = parseInt(c.req.query("min_violations") ?? "0", 10);
+  const violationsClause = minViolations > 0 ? " AND ss.protocol_violation_count >= ?" : "";
 
   const baseParams: unknown[] = [id, minRisk];
+  if (minViolations > 0) baseParams.push(minViolations);
   if (filterColumn && filterValue) baseParams.push(filterValue);
   if (sectionCode) baseParams.push(`%${sectionCode}%`);
 
@@ -368,6 +375,7 @@ elections.get("/:id/anomalies", (c) => {
        ss.ekatte_turnout_zscore, ss.ekatte_turnout_zscore_norm,
        ss.peer_vote_deviation, ss.peer_vote_deviation_norm,
        ss.arithmetic_error, ss.vote_sum_mismatch,
+       ss.protocol_violation_count,
        ss.section_type,
        ss.benford_risk, ss.peer_risk, ss.acf_risk,
        ss.acf_turnout_outlier, ss.acf_winner_outlier, ss.acf_invalid_outlier,
@@ -377,7 +385,7 @@ elections.get("/:id/anomalies", (c) => {
 FROM section_scores ss
 JOIN sections s ON s.election_id = ss.election_id AND s.section_code = ss.section_code
 JOIN locations l ON l.id = s.location_id
-WHERE ss.election_id = ? AND ${riskColumn} >= ?${filterClause}${sectionClause}${typeClause}
+WHERE ss.election_id = ? AND ${riskColumn} >= ?${violationsClause}${filterClause}${sectionClause}${typeClause}
 ORDER BY ${sortColumn} ${orderDir}
 ${limit != null ? "LIMIT ? OFFSET ?" : ""}`;
 
@@ -385,7 +393,7 @@ ${limit != null ? "LIMIT ? OFFSET ?" : ""}`;
 FROM section_scores ss
 JOIN sections s ON s.election_id = ss.election_id AND s.section_code = ss.section_code
 JOIN locations l ON l.id = s.location_id
-WHERE ss.election_id = ? AND ${riskColumn} >= ?${filterClause}${sectionClause}${typeClause}`;
+WHERE ss.election_id = ? AND ${riskColumn} >= ?${violationsClause}${filterClause}${sectionClause}${typeClause}`;
 
   const sections = limit != null
     ? db.prepare(sql).all(...baseParams, limit, offset)
@@ -393,6 +401,51 @@ WHERE ss.election_id = ? AND ${riskColumn} >= ?${filterClause}${sectionClause}${
   const { total } = db.prepare(countSql).get(...baseParams) as { total: number };
 
   return c.json({ election, sections, total, limit, offset });
+});
+
+// Protocol violations for a specific section
+elections.get("/:id/violations/:sectionCode", (c) => {
+  const db = getDb();
+  const { id, sectionCode } = c.req.param();
+
+  const violations = db
+    .prepare(
+      `SELECT rule_id, description, expected_value, actual_value, severity
+       FROM protocol_violations
+       WHERE election_id = ? AND section_code = ?
+       ORDER BY rule_id`
+    )
+    .all(id, sectionCode);
+
+  return c.json({ section_code: sectionCode, violations });
+});
+
+// Protocol violations summary for an election (counts by rule)
+elections.get("/:id/violations", (c) => {
+  const db = getDb();
+  const { id } = c.req.param();
+
+  const summary = db
+    .prepare(
+      `SELECT rule_id, severity, COUNT(*) as count,
+              COUNT(DISTINCT section_code) as sections_affected
+       FROM protocol_violations
+       WHERE election_id = ?
+       GROUP BY rule_id, severity
+       ORDER BY rule_id`
+    )
+    .all(id);
+
+  const total = db
+    .prepare(
+      `SELECT COUNT(DISTINCT section_code) as sections_with_violations,
+              COUNT(*) as total_violations
+       FROM protocol_violations
+       WHERE election_id = ?`
+    )
+    .get(id) as { sections_with_violations: number; total_violations: number };
+
+  return c.json({ ...total, rules: summary });
 });
 
 // All sections with top-5 party results + coordinates (for sections map)
