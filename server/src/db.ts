@@ -14,6 +14,9 @@ function getDb(): DatabaseType {
       );
     }
     _db = new Database(DB_PATH, { readonly: true });
+    _db.pragma("mmap_size=1073741824");
+    _db.pragma("cache_size=-512000");
+    _db.pragma("read_uncommitted=ON");
   }
   return _db;
 }

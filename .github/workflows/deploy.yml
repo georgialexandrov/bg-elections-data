@@ -1,0 +1,23 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: elections
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /opt/elections
+            git pull origin main
+            npm ci
+            npm run build -w web
+            sudo systemctl restart elections-api
