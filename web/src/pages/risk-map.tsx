@@ -80,35 +80,41 @@ function pct2(value: number): string {
   return (Math.floor(value * 100) / 100).toFixed(2);
 }
 
-// CIK results URL prefixes per election ID
-const CIK_ELECTION_MAP: Record<number, { prefix: string; type: "p" | "pk"; video?: string }> = {
-  1:  { prefix: "pe202410",      type: "p",  video: "pe202410" },
-  2:  { prefix: "pe202410_ks",   type: "pk", video: "pe202410" },
-  3:  { prefix: "pe202406",      type: "p",  video: "pe202406" },
-  4:  { prefix: "ep2024",        type: "p",  video: "ep2024" },
-  5:  { prefix: "mi2023/os",     type: "p" },
-  6:  { prefix: "mi2023/kmet",   type: "p" },
-  7:  { prefix: "mi2023/ko",     type: "p" },
-  8:  { prefix: "mi2023/kr",     type: "p" },
-  9:  { prefix: "mi2023_tur2/kmet", type: "p" },
-  10: { prefix: "mi2023_tur2/ko",   type: "p" },
-  11: { prefix: "mi2023_tur2/kr",   type: "p" },
-  12: { prefix: "ns2023",        type: "p",  video: "ns2023" },
-  13: { prefix: "ns2022",        type: "p",  video: "ns2022" },
-  14: { prefix: "pi2021_11/ns",  type: "p",  video: "pi2021" },
-  15: { prefix: "pi2021_11/pr",  type: "p",  video: "pi2021" },
-  16: { prefix: "pi2021_11_tur2",type: "p",  video: "pi2021" },
-  17: { prefix: "ns2021_07",     type: "p",  video: "ns2021" },
-  18: { prefix: "pi2021",        type: "p",  video: "pi2021" },
+// CIK results URL config per election ID.
+// suffix: protocol URL suffix per election era (from scrape_cik_addresses.py _proto_suffix):
+//   pi2021 (Apr 2021): no suffix — URLs are just {code}.html
+//   pi2021_07, pvrns2021, ns2022: always .0
+//   ns2023, mi2023*: always .1
+//   europe2024+, pe202410+: .0 (machine) or .1 (no machine) — we default to .0
+const CIK_ELECTION_MAP: Record<number, { prefix: string; type: "p" | "pk"; suffix: string; dataEl: number; video?: string }> = {
+  1:  { prefix: "pe202410",         type: "p",  suffix: ".0", dataEl: 64, video: "pe202410" },
+  2:  { prefix: "pe202410_ks",      type: "pk", suffix: ".0", dataEl: 2,  video: "pe202410" },
+  3:  { prefix: "europe2024/ns",    type: "p",  suffix: ".0", dataEl: 64, video: "europe2024" },
+  4:  { prefix: "europe2024/ep",    type: "p",  suffix: ".0", dataEl: 64, video: "europe2024" },
+  5:  { prefix: "mi2023/os",        type: "p",  suffix: ".1", dataEl: 1 },
+  6:  { prefix: "mi2023/kmet",      type: "p",  suffix: ".1", dataEl: 2 },
+  7:  { prefix: "mi2023/ko",        type: "p",  suffix: ".1", dataEl: 4 },
+  8:  { prefix: "mi2023/kr",        type: "p",  suffix: ".1", dataEl: 8 },
+  9:  { prefix: "mi2023_tur2/kmet", type: "p",  suffix: ".1", dataEl: 2 },
+  10: { prefix: "mi2023_tur2/ko",   type: "p",  suffix: ".1", dataEl: 4 },
+  11: { prefix: "mi2023_tur2/kr",   type: "p",  suffix: ".1", dataEl: 8 },
+  12: { prefix: "ns2023",           type: "p",  suffix: ".1", dataEl: 64, video: "ns2023" },
+  13: { prefix: "ns2022",           type: "p",  suffix: ".0", dataEl: 64, video: "ns2022" },
+  14: { prefix: "pvrns2021/ns",     type: "p",  suffix: ".0", dataEl: 64, video: "pvrns2021" },
+  15: { prefix: "pvrns2021/pvr",    type: "p",  suffix: ".0", dataEl: 64, video: "pvrns2021" },
+  16: { prefix: "pvrns2021_tur2",   type: "p",  suffix: ".0", dataEl: 64, video: "pvrns2021" },
+  17: { prefix: "pi2021_07",        type: "p",  suffix: ".0", dataEl: 64, video: "pi2021_07" },
+  18: { prefix: "pi2021",           type: "p",  suffix: "",   dataEl: 64, video: "pi2021" },
 };
 
 function buildProtocolLinks(sectionCode: string, electionId: number) {
   const config = CIK_ELECTION_MAP[electionId];
   if (!config) return null;
   const rik = sectionCode.slice(0, 2);
+  const s = config.suffix; // e.g. ".0", ".1", or "" (empty for pi2021)
   return {
-    protocol: `https://results.cik.bg/${config.prefix}/rezultati/${rik}.html#/${config.type}/64/${sectionCode}.0.html`,
-    scan: `https://results.cik.bg/${config.prefix}/rezultati/${rik}.html#/s/64/${sectionCode}.0.pdf`,
+    protocol: `https://results.cik.bg/${config.prefix}/rezultati/${rik}.html#/${config.type}/${config.dataEl}/${sectionCode}${s}.html`,
+    scan: `https://results.cik.bg/${config.prefix}/rezultati/${rik}.html#/s/${config.dataEl}/${sectionCode}${s}.pdf`,
     video: config.video ? `https://evideo.bg/${config.video}/${rik}.html#${sectionCode}` : null,
   };
 }
