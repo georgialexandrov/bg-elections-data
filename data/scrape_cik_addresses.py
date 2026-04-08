@@ -174,9 +174,8 @@ def main():
 
     if args.dry_run:
         for code, info in list(addresses.items())[:20]:
-            url = f"{BASE_URL}/{args.election}/rezultati/{info['mir']:02d}.html#/p/{info['data_el']}/{code}.0.html"
             print(f"  {code} | {info['address'][:60]}")
-            print(f"    {url}")
+            print(f"    {BASE_URL}/{args.election}/rezultati/{info['mir']:02d}.html#/p/{info['data_el']}/{code}.<0|1>.html")
         return
 
     # Update DB
@@ -210,15 +209,16 @@ def main():
 
     for code, info in addresses.items():
         addr = info["address"]
-        url = f"{BASE_URL}/{args.election}/rezultati/{info['mir']:02d}.html#/p/{info['data_el']}/{code}.0.html"
 
         row = conn.execute("""
-            SELECT s.id, s.location_id FROM sections s
+            SELECT s.id, s.location_id, s.machine_count FROM sections s
             WHERE s.section_code = ? AND s.election_id = ?
         """, (code, election_id)).fetchone()
 
         if row:
-            section_id, location_id = row
+            section_id, location_id, machine_count = row
+            proto_idx = 0 if machine_count and machine_count > 0 else 1
+            url = f"{BASE_URL}/{args.election}/rezultati/{info['mir']:02d}.html#/p/{info['data_el']}/{code}.{proto_idx}.html"
             conn.execute(
                 "UPDATE sections SET protocol_address = ?, protocol_url = ? WHERE id = ?",
                 (addr, url, section_id)
