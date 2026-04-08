@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Map as MapGL, MapMarker, MarkerContent, MapControls } from "@/components/ui/map";
+import LocationCorrection from "@/components/location-correction";
 
 interface ElectionHistory {
   election_id: number;
@@ -247,6 +248,7 @@ export default function SectionPreview({ sectionCode }: { sectionCode: string })
     return <div className="py-8 text-center text-xs text-muted-foreground">Няма данни</div>;
   }
 
+  const [showCorrection, setShowCorrection] = useState(false);
   const flaggedCount = history.filter((h) => h.risk_score >= 0.3).length;
   const avgRisk = history.reduce((s, h) => s + h.risk_score, 0) / history.length;
   const maxRisk = Math.max(...history.map((h) => h.risk_score));
@@ -343,16 +345,24 @@ export default function SectionPreview({ sectionCode }: { sectionCode: string })
           {"share" in navigator ? "Сподели" : "Копирай линк"}
         </button>
         <button
-          onClick={() => {
-            const subject = encodeURIComponent(`Грешна локация: секция ${sectionCode}`);
-            const body = encodeURIComponent(`Секция ${sectionCode}\n${location?.settlement_name ?? ""}\nКоординати: ${location?.lat}, ${location?.lng}\n\nОписание на проблема:\n`);
-            window.open(`https://github.com/georgialexandrov/bg-elections-data/issues/new?title=${subject}&body=${body}`, "_blank");
-          }}
+          onClick={() => setShowCorrection(true)}
           className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-center text-[11px] font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
         >
           Грешна локация
         </button>
       </div>
+
+      {showCorrection && (
+        <LocationCorrection
+          sectionCode={sectionCode}
+          electionId={String(history[0]?.election_id ?? "")}
+          settlementName={location?.settlement_name ?? ""}
+          address={location?.address ?? null}
+          currentLat={location?.lat ?? null}
+          currentLng={location?.lng ?? null}
+          onClose={() => setShowCorrection(false)}
+        />
+      )}
 
       {/* Election cards */}
       {loadingDetails && (

@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { Map, useMap } from "@/components/ui/map";
 import MapLibreGL from "maplibre-gl";
 
-const SUBMIT_URL = (import.meta as any).env?.VITE_CORRECTION_SHEET_URL as string | undefined;
+const SUBMIT_URL =
+  ((import.meta as any).env?.VITE_CORRECTION_SHEET_URL as string | undefined) ??
+  "https://script.google.com/macros/s/AKfycbxNi6p6D8xDlI8tYnJtBNQvT4i-n9YktxjDsYpuh55YnmsUYwZDwn9QiCih5bb8yKc6/exec";
 
 const BULGARIA_CENTER: [number, number] = [25.5, 42.7];
 
