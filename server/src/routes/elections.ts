@@ -175,6 +175,178 @@ elections.get("/compare", (c) => {
   return c.json({ elections: existingElections, results });
 });
 
+// Cross-election persistence index — sections flagged across many elections
+// MUST be registered before /:id routes to avoid "persistence" matching as :id
+elections.get("/persistence", (c) => {
+  const db = getDb();
+
+  const minElections = Math.max(parseInt(c.req.query("min_elections") ?? "5", 10), 1);
+  const minScore = parseFloat(c.req.query("min_score") ?? "0");
+  const sort = c.req.query("sort") ?? "persistence_score";
+  const order = c.req.query("order") === "asc" ? "ASC" : "DESC";
+  const limit = Math.max(parseInt(c.req.query("limit") ?? "100", 10), 1);
+  const offset = Math.max(parseInt(c.req.query("offset") ?? "0", 10), 0);
+  const excludeSpecial = c.req.query("exclude_special") === "true";
+  const section = c.req.query("section");
+
+  const VALID_PERSISTENCE_SORTS = [
+    "persistence_score", "elections_flagged", "elections_present",
+    "avg_risk", "max_risk", "consistency", "total_violations",
+    "section_code", "settlement_name", "avg_registered", "avg_voted", "avg_turnout",
+  ];
+  const sortCol = VALID_PERSISTENCE_SORTS.includes(sort) ? sort : "persistence_score";
+
+  // Election weights: type weight × recency weight
+  // Type: parliament/president/european = 1.0, local_council/local_mayor = 0.7, kmetstvo/neighbourhood = 0.4
+  // Recency: linear from 0.6 (oldest, 2021) to 1.0 (newest, 2024)
+  const elRows = db.prepare(`SELECT id, name, date, type FROM elections ORDER BY date`).all() as {
+    id: number; name: string; date: string; type: string;
+  }[];
+
+  const typeWeights: Record<string, number> = {
+    parliament: 1.0, president: 1.0, european: 1.0,
+    local_council: 0.7, local_mayor: 0.7,
+    local_mayor_kmetstvo: 0.4, local_mayor_neighbourhood: 0.4,
+  };
+
+  const dates = elRows.map((e) => new Date(e.date).getTime());
+  const minDate = Math.min(...dates);
+  const maxDate = Math.max(...dates);
+  const dateRange = maxDate - minDate || 1;
+
+  const electionWeights = new Map<number, number>();
+  for (const e of elRows) {
+    const typeW = typeWeights[e.type] ?? 0.7;
+    const recencyW = 0.6 + 0.4 * ((new Date(e.date).getTime() - minDate) / dateRange);
+    electionWeights.set(e.id, typeW * recencyW);
+  }
+
+  // Build weight CASE expression for SQL
+  const weightCases = elRows
+    .map((e) => `WHEN ${e.id} THEN ${electionWeights.get(e.id)!.toFixed(4)}`)
+    .join(" ");
+  const weightExpr = `CASE ss.election_id ${weightCases} ELSE 0.7 END`;
+
+  const typeClause = excludeSpecial ? " AND ss.section_type = 'normal'" : "";
+  const sectionClause = section ? " AND ss.section_code LIKE ?" : "";
+
+  const sql = `
+    WITH agg AS (
+      SELECT
+        ss.section_code,
+        COUNT(DISTINCT ss.election_id) AS elections_present,
+        COUNT(DISTINCT CASE WHEN ss.risk_score >= 0.3 THEN ss.election_id END) AS elections_flagged,
+        ROUND(SUM(${weightExpr} * ss.risk_score) / SUM(${weightExpr}), 4) AS weighted_avg_risk,
+        ROUND(AVG(ss.risk_score), 4) AS avg_risk,
+        ROUND(MAX(ss.risk_score), 4) AS max_risk,
+        SUM(ss.protocol_violation_count) AS total_violations,
+        SUM(ss.arithmetic_error) AS total_arith_errors,
+        SUM(ss.vote_sum_mismatch) AS total_vote_mismatches,
+        COUNT(DISTINCT CASE WHEN ss.benford_risk >= 0.3 THEN ss.election_id END) AS benford_flags,
+        COUNT(DISTINCT CASE WHEN ss.peer_risk >= 0.3 THEN ss.election_id END) AS peer_flags,
+        COUNT(DISTINCT CASE WHEN ss.acf_risk >= 0.3 THEN ss.election_id END) AS acf_flags,
+        COUNT(DISTINCT CASE WHEN ss.protocol_violation_count > 0 THEN ss.election_id END) AS protocol_flags,
+        ROUND(AVG(ss.turnout_rate), 4) AS avg_turnout
+      FROM section_scores ss
+      WHERE 1=1${typeClause}${sectionClause}
+      GROUP BY ss.section_code
+      HAVING elections_present >= ?
+    ),
+    scored AS (
+      SELECT *,
+        ROUND(weighted_avg_risk * POWER(CAST(elections_flagged AS REAL) / elections_present, 0.5), 4) AS persistence_score,
+        ROUND(CAST(elections_flagged AS REAL) / elections_present, 4) AS consistency
+      FROM agg
+    ),
+    voter_avgs AS (
+      SELECT p.section_code,
+        ROUND(AVG(p.registered_voters)) AS avg_registered,
+        ROUND(AVG(p.actual_voters)) AS avg_voted
+      FROM protocols p
+      GROUP BY p.section_code
+    )
+    SELECT s.*,
+      l.settlement_name,
+      l.lat, l.lng,
+      COALESCE(va.avg_registered, 0) AS avg_registered,
+      COALESCE(va.avg_voted, 0) AS avg_voted
+    FROM scored s
+    LEFT JOIN (
+      SELECT sec.section_code, loc.settlement_name, loc.lat, loc.lng,
+        ROW_NUMBER() OVER (PARTITION BY sec.section_code ORDER BY sec.election_id DESC) AS rn
+      FROM sections sec
+      JOIN locations loc ON loc.id = sec.location_id
+    ) l ON l.section_code = s.section_code AND l.rn = 1
+    LEFT JOIN voter_avgs va ON va.section_code = s.section_code
+    WHERE s.persistence_score >= ?
+    ORDER BY ${sortCol === "settlement_name" ? "l.settlement_name" : sortCol === "section_code" ? "s.section_code" : sortCol === "avg_registered" ? "va.avg_registered" : sortCol === "avg_voted" ? "va.avg_voted" : `s.${sortCol}`} ${order}
+    LIMIT ? OFFSET ?
+  `;
+
+  const countSql = `
+    WITH agg AS (
+      SELECT
+        ss.section_code,
+        COUNT(DISTINCT ss.election_id) AS elections_present,
+        COUNT(DISTINCT CASE WHEN ss.risk_score >= 0.3 THEN ss.election_id END) AS elections_flagged,
+        ROUND(SUM(${weightExpr} * ss.risk_score) / SUM(${weightExpr}), 4) AS weighted_avg_risk
+      FROM section_scores ss
+      WHERE 1=1${typeClause}${sectionClause}
+      GROUP BY ss.section_code
+      HAVING elections_present >= ?
+    ),
+    scored AS (
+      SELECT *,
+        ROUND(weighted_avg_risk * POWER(CAST(elections_flagged AS REAL) / elections_present, 0.5), 4) AS persistence_score
+      FROM agg
+    )
+    SELECT COUNT(*) AS total FROM scored WHERE persistence_score >= ?
+  `;
+
+  const params: unknown[] = [];
+  if (section) params.push(`%${section}%`);
+  params.push(minElections);
+  params.push(minScore);
+
+  const countParams = [...params];
+  params.push(limit, offset);
+
+  const sections = db.prepare(sql).all(...params);
+  const { total } = db.prepare(countSql).get(...countParams) as { total: number };
+
+  return c.json({
+    sections,
+    total,
+    limit,
+    offset,
+    elections_count: elRows.length,
+    weights: Object.fromEntries(elRows.map((e) => [e.id, {
+      name: e.name,
+      weight: Math.round(electionWeights.get(e.id)! * 1000) / 1000,
+    }])),
+  });
+});
+
+// Per-section election history — detailed breakdown for expanded row
+elections.get("/persistence/:sectionCode", (c) => {
+  const db = getDb();
+  const { sectionCode } = c.req.param();
+
+  const rows = db.prepare(`
+    SELECT ss.election_id, e.name AS election_name, e.date AS election_date, e.type AS election_type,
+      ss.risk_score, ss.benford_risk, ss.peer_risk, ss.acf_risk,
+      ss.turnout_rate, ss.arithmetic_error, ss.vote_sum_mismatch,
+      ss.protocol_violation_count, s.protocol_url
+    FROM section_scores ss
+    JOIN elections e ON e.id = ss.election_id
+    LEFT JOIN sections s ON s.election_id = ss.election_id AND s.section_code = ss.section_code
+    WHERE ss.section_code = ?
+    ORDER BY e.date
+  `).all(sectionCode);
+
+  return c.json({ section_code: sectionCode, elections: rows });
+});
+
 const VALID_GROUP_BY = ["rik", "district", "municipality", "kmetstvo", "local_region"] as const;
 type GroupByLevel = typeof VALID_GROUP_BY[number];
 
@@ -369,7 +541,7 @@ elections.get("/:id/anomalies", (c) => {
   // Sort column mapping: settlement_name comes from locations table
   const sortColumn = sort === "settlement_name" ? "l.settlement_name" : sort === "section_code" ? "ss.section_code" : `ss.${sort}`;
 
-  const sql = `SELECT ss.section_code, l.settlement_name, l.address, l.lat, l.lng,
+  const sql = `SELECT ss.section_code, l.settlement_name, l.address, l.lat, l.lng, s.protocol_url,
        ss.risk_score, ss.turnout_rate, ss.turnout_zscore,
        ss.benford_chi2, ss.benford_p, ss.benford_score,
        ss.ekatte_turnout_zscore, ss.ekatte_turnout_zscore_norm,

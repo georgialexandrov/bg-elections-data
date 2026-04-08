@@ -12,6 +12,8 @@ import ElectionResults from "./pages/election-results.js";
 import Turnout from "./pages/turnout.js";
 import ElectionMap from "./pages/election-map.js";
 import SectionsTable from "./pages/sections-table.js";
+import Persistence from "./pages/persistence.js";
+import SectionDetail from "./pages/section-detail.js";
 
 // Redirect helpers for old URLs
 function RedirectToResults() {
@@ -40,6 +42,8 @@ createRoot(document.getElementById("root")!).render(
           <Route path="/:electionId/results" element={<DistrictPieMap />} />
           <Route path="/:electionId/sections" element={<RiskMap />} />
           <Route path="/:electionId/table" element={<SectionsTable />} />
+          <Route path="/persistence" element={<Persistence />} />
+          <Route path="/section/:sectionCode" element={<SectionDetail />} />
           {/* Hidden for now — not ready for public release */}
           {/* <Route path="/compare" element={<CompareElections />} /> */}
           {/* <Route path="/parties" element={<PartyList />} /> */}

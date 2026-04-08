@@ -21,6 +21,10 @@ const NAV_ITEMS = [
   { label: "Таблица", path: "table" },
 ] as const;
 
+const STANDALONE_NAV = [
+  { label: "Системни", path: "/persistence" },
+] as const;
+
 // Hidden for now — not ready for public release
 // const STANDALONE_ITEMS = [
 //   { label: "Сравнение", path: "/compare" },
@@ -109,6 +113,24 @@ export default function Layout() {
           </div>
         )}
 
+        {/* Standalone (non-election-scoped) nav */}
+        <div className="ml-auto flex items-center gap-0.5">
+          {STANDALONE_NAV.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={({ isActive }) =>
+                `rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                  isActive
+                    ? "bg-foreground text-background"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                }`
+              }
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </div>
       </nav>
 
       {/* Main content */}

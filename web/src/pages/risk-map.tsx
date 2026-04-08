@@ -43,6 +43,7 @@ export interface RiskSection {
   acf_party_shift: number | null;
   acf_party_shift_norm: number;
   section_type: string;
+  protocol_url: string | null;
 }
 
 interface AnomaliesResponse {
@@ -1037,6 +1038,16 @@ export function RiskSidebarContent({ section, electionId }: { section: RiskSecti
               🗺
             </a>
           </div>
+        )}
+        {s.protocol_url && (
+          <a
+            href={s.protocol_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block mt-1 text-xs text-blue-600 hover:underline"
+          >
+            Протокол в ЦИК →
+          </a>
         )}
       </div>
 
