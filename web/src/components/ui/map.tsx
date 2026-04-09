@@ -224,12 +224,19 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
       container: containerRef.current,
       style: initialStyle,
       renderWorldCopies: false,
+      dragRotate: false,
+      pitchWithRotate: false,
+      touchPitch: false,
       attributionControl: {
         compact: true,
       },
       ...props,
       ...viewport,
     });
+
+    // Disable rotation via keyboard (shift+arrow) and touch
+    map.keyboard.disableRotation();
+    map.touchZoomRotate.disableRotation();
 
     const styleDataHandler = () => {
       clearStyleTimeout();

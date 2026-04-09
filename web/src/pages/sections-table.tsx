@@ -30,7 +30,7 @@ interface Violation {
 
 type Methodology = "combined" | "benford" | "peer" | "acf";
 type ViolationFilter = "all" | "with_violations";
-type SortColumn = "risk_score" | "benford_risk" | "peer_risk" | "acf_risk" | "turnout_rate" | "section_code" | "settlement_name" | "protocol_violation_count";
+type SortColumn = "risk_score" | "benford_risk" | "peer_risk" | "acf_risk" | "turnout_rate" | "section_code" | "settlement_name" | "protocol_violation_count" | "registered_voters" | "actual_voters";
 
 function RiskBadge({ value }: { value: number }) {
   const bg =
@@ -366,6 +366,8 @@ export default function SectionsTable() {
             <tr>
               <SortHeader label="Секция" column="section_code" currentSort={sort} currentOrder={order} onSort={setSort} />
               <SortHeader label="Населено място" column="settlement_name" currentSort={sort} currentOrder={order} onSort={setSort} />
+              <SortHeader label="Избиратели" column="registered_voters" currentSort={sort} currentOrder={order} onSort={setSort} />
+              <SortHeader label="Гласували" column="actual_voters" currentSort={sort} currentOrder={order} onSort={setSort} />
               <SortHeader label="Активност" column="turnout_rate" currentSort={sort} currentOrder={order} onSort={setSort} />
               <SortHeader label="Комб. риск" column="risk_score" currentSort={sort} currentOrder={order} onSort={setSort} />
               <SortHeader label="Benford" column="benford_risk" currentSort={sort} currentOrder={order} onSort={setSort} className="hidden md:table-cell" />
@@ -394,6 +396,8 @@ export default function SectionsTable() {
                       )}
                     </span>
                   </td>
+                  <td className="whitespace-nowrap px-2 py-1.5 font-mono tabular-nums">{(s.registered_voters ?? 0).toLocaleString()}</td>
+                  <td className="whitespace-nowrap px-2 py-1.5 font-mono tabular-nums">{(s.actual_voters ?? 0).toLocaleString()}</td>
                   <td className="whitespace-nowrap px-2 py-1.5 font-mono tabular-nums">{pct2(s.turnout_rate * 100)}%</td>
                   <td className="whitespace-nowrap px-2 py-1.5"><RiskBadge value={s.risk_score} /></td>
                   <td className="hidden whitespace-nowrap px-2 py-1.5 md:table-cell"><RiskBadge value={s.benford_risk} /></td>
@@ -424,7 +428,7 @@ export default function SectionsTable() {
                 </tr>
                 {expandedCode === s.section_code && s.protocol_violation_count > 0 && electionId && (
                   <tr key={`${s.section_code}-expand`} className="border-b border-border/50">
-                    <td colSpan={9} className="bg-muted/30 px-2 py-2">
+                    <td colSpan={11} className="bg-muted/30 px-2 py-2">
                       <ViolationDetail electionId={electionId} sectionCode={s.section_code} />
                     </td>
                   </tr>
@@ -433,7 +437,7 @@ export default function SectionsTable() {
             ))}
             {!loading && sections.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                <td colSpan={11} className="px-4 py-8 text-center text-muted-foreground">
                   Няма секции, отговарящи на филтрите
                 </td>
               </tr>

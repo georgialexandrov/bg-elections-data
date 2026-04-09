@@ -460,6 +460,7 @@ const VALID_SORT_COLUMNS = [
   "section_code", "settlement_name",
   "benford_risk", "peer_risk", "acf_risk",
   "acf_multicomponent", "acf_turnout_shift_norm", "acf_party_shift_norm",
+  "registered_voters", "actual_voters",
 ] as const;
 
 elections.get("/:id/anomalies", (c) => {
@@ -538,8 +539,14 @@ elections.get("/:id/anomalies", (c) => {
   if (filterColumn && filterValue) baseParams.push(filterValue);
   if (sectionCode) baseParams.push(`%${sectionCode}%`);
 
-  // Sort column mapping: settlement_name comes from locations table
-  const sortColumn = sort === "settlement_name" ? "l.settlement_name" : sort === "section_code" ? "ss.section_code" : `ss.${sort}`;
+  // Sort column mapping: some columns come from other tables
+  const sortColumnMap: Record<string, string> = {
+    settlement_name: "l.settlement_name",
+    section_code: "ss.section_code",
+    registered_voters: "p.registered_voters",
+    actual_voters: "p.actual_voters",
+  };
+  const sortColumn = sortColumnMap[sort] ?? `ss.${sort}`;
 
   const sql = `SELECT ss.section_code, l.settlement_name, l.address, l.lat, l.lng, s.protocol_url,
        ss.risk_score, ss.turnout_rate, ss.turnout_zscore,
@@ -553,10 +560,12 @@ elections.get("/:id/anomalies", (c) => {
        ss.acf_turnout_outlier, ss.acf_winner_outlier, ss.acf_invalid_outlier,
        ss.acf_multicomponent,
        ss.acf_turnout_shift, ss.acf_turnout_shift_norm,
-       ss.acf_party_shift, ss.acf_party_shift_norm
+       ss.acf_party_shift, ss.acf_party_shift_norm,
+       p.registered_voters, p.actual_voters
 FROM section_scores ss
 JOIN sections s ON s.election_id = ss.election_id AND s.section_code = ss.section_code
 JOIN locations l ON l.id = s.location_id
+LEFT JOIN protocols p ON p.election_id = ss.election_id AND p.section_code = ss.section_code
 WHERE ss.election_id = ? AND ${riskColumn} >= ?${violationsClause}${filterClause}${sectionClause}${typeClause}
 ORDER BY ${sortColumn} ${orderDir}
 ${limit != null ? "LIMIT ? OFFSET ?" : ""}`;

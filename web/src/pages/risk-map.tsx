@@ -45,6 +45,8 @@ export interface RiskSection {
   acf_party_shift_norm: number;
   section_type: string;
   protocol_url: string | null;
+  registered_voters: number | null;
+  actual_voters: number | null;
 }
 
 interface AnomaliesResponse {
@@ -1453,6 +1455,7 @@ export default function RiskMap() {
   const [riskLoading, setRiskLoading] = useState(false);
 
   const [showBaseSections, setShowBaseSections] = useState(true);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [districts, setDistricts] = useState<GeoEntity[]>([]);
   const [municipalities, setMunicipalities] = useState<GeoEntity[]>([]);
 
@@ -1567,11 +1570,19 @@ export default function RiskMap() {
         <SelectedSectionHighlight sectionCode={selectedCode || null} />
       </Map>
 
-      {/* Floating filter panel — top left */}
-      <div className="absolute top-2 left-2 right-2 z-10 flex max-w-[320px] flex-col gap-0 rounded-lg border border-border bg-background/96 shadow-lg backdrop-blur-sm md:left-3 md:right-auto md:top-3 md:min-w-[280px]">
+      {/* Floating filter panel — top left, collapsible on mobile */}
+      <div className="absolute top-2 left-2 z-10 flex max-w-[280px] flex-col gap-0 rounded-lg border border-border bg-background/96 shadow-lg backdrop-blur-sm md:left-3 md:top-3 md:min-w-[280px] md:max-w-[320px]">
+        {/* Mobile toggle header */}
+        <button
+          onClick={() => setFiltersExpanded(!filtersExpanded)}
+          className="flex items-center justify-between p-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground md:hidden"
+        >
+          <span>Филтри</span>
+          <span className="text-[10px]">{filtersExpanded ? "▲" : "▼"}</span>
+        </button>
         {/* Section 1: Location filter */}
-        <div className="flex flex-col gap-2.5 p-3.5 pb-3">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Местоположение</div>
+        <div className={`flex-col gap-2.5 p-3.5 pb-3 ${filtersExpanded ? "flex" : "hidden md:flex"}`}>
+          <div className="hidden text-[11px] font-semibold uppercase tracking-wide text-muted-foreground md:block">Местоположение</div>
 
           {/* Geographic filters */}
           <div className="flex gap-2">
@@ -1617,10 +1628,10 @@ export default function RiskMap() {
           </div>
         </div>
 
-        <div className="border-t border-border" />
+        <div className={`border-t border-border ${filtersExpanded ? "" : "hidden md:block"}`} />
 
         {/* Section 2: Risk filter */}
-        <div className="flex flex-col gap-2.5 p-3.5 pt-3">
+        <div className={`flex-col gap-2.5 p-3.5 pt-3 ${filtersExpanded ? "flex" : "hidden md:flex"}`}>
           <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Рисков анализ</div>
 
           {/* Risk threshold */}

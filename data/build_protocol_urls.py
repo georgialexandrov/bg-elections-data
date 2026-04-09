@@ -36,7 +36,7 @@ DB_PATH = Path(os.environ.get("ELECTIONS_DB", Path(__file__).parent.parent / "el
 # proto_type: "p" for protocol, "pk" for constitutional court protocol
 ELECTION_CONFIG: dict[str, tuple[str, str, int, str]] = {
     "pe202410":                 ("pe202410",            "auto", 64, "p"),
-    "pe202410_ks":              ("pe202410_ks",         "auto", 2,  "pk"),
+    "pe202410_ks":              ("pe202410_ks",         "auto", 64, "pk"),
     "europe2024_ns":            ("europe2024/ns",       "auto", 64, "p"),
     "europe2024_ep":            ("europe2024/ep",       "auto", 64, "p"),
     "mi2023_council":           ("mi2023/os",           "1",    1,  "p"),

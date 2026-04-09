@@ -11,7 +11,7 @@ export default function Sidebar({ open, onClose, title, children }: SidebarProps
   if (!open) return null;
 
   return (
-    <div className="absolute inset-y-0 right-0 z-20 flex w-full flex-col border-l border-border bg-background shadow-lg md:w-[480px]">
+    <div className="absolute inset-x-0 bottom-0 z-20 flex max-h-[60vh] flex-col rounded-t-xl border-t border-border bg-background shadow-lg md:inset-x-auto md:inset-y-0 md:right-0 md:max-h-none md:w-[480px] md:rounded-none md:border-l md:border-t-0">
       {/* Header */}
       <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-3">
         {title && (
