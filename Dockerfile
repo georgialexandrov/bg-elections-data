@@ -39,4 +39,9 @@ EXPOSE 3000
 # CWD = /app/server so serveStatic root "../web/dist" → /app/web/dist
 WORKDIR /app/server
 
+# Drop root. node:alpine ships a pre-created `node` user (uid 1000).
+# The mounted elections.db on the host must be world-readable (chmod 0644)
+# or owned by uid 1000 for this user to open it.
+USER node
+
 CMD ["node", "dist/index.js"]

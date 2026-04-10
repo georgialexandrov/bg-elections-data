@@ -57,4 +57,7 @@ jobs:
             mv elections.db.new elections.db
             sqlite3 elections.db "PRAGMA journal_mode=WAL;"
             sudo systemctl start elections-api
+            # Purge nginx proxy_cache — the old responses no longer match the new DB.
+            sudo rm -rf /var/cache/nginx/elections/*
+            sudo systemctl reload nginx
             echo "DB deployed from ${{ steps.release.outputs.tag }}"

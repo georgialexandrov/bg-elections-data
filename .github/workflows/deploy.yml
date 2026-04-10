@@ -22,3 +22,7 @@ jobs:
             pnpm install --frozen-lockfile
             pnpm --filter web build
             sudo systemctl restart elections-api
+            # Purge nginx proxy_cache so clients see the new code/response shape.
+            # Cache has 7d TTL; without this, stale JSON could persist until inactive.
+            sudo rm -rf /var/cache/nginx/elections/*
+            sudo systemctl reload nginx
