@@ -501,9 +501,16 @@ def score_election(conn, election_id, prev_election_id=None):
     cur = conn.cursor()
 
     # --- Section classification ---
-    cur.execute("""
+    # protocol_address lives on locations (normalized) with sections.protocol_address
+    # as a legacy fallback for DBs built before that migration.
+    has_proto_col = cur.execute(
+        "SELECT 1 FROM pragma_table_info('sections') WHERE name = 'protocol_address'"
+    ).fetchone() is not None
+    proto_expr = "COALESCE(l.protocol_address, s.protocol_address)" if has_proto_col else "l.protocol_address"
+
+    cur.execute(f"""
         SELECT s.section_code, s.rik_code, l.address, l.ekatte, l.municipality_id,
-               s.protocol_address
+               {proto_expr}
         FROM sections s
         JOIN locations l ON l.id = s.location_id
         WHERE s.election_id = ?

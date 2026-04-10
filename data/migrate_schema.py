@@ -261,12 +261,15 @@ def main() -> None:
     migrate_votes(conn)
     migrate_preferences(conn)
 
-    # section_scores + view only if score_sections.py was run
+    # section_scores: score_sections.py now creates the table WITHOUT ROWID
+    # with the full schema (section_type, acf_*, protocol_violation_count,
+    # benford_risk, peer_risk, acf_risk). The old migrate_section_scores()
+    # downgrades it by dropping those columns — do not call it. Just refresh
+    # the history view if the table exists.
     has_scores = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='section_scores'"
     ).fetchone()
     if has_scores:
-        migrate_section_scores(conn)
         create_view(conn)
 
     ensure_indexes(conn)

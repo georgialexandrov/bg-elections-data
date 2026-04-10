@@ -49,8 +49,8 @@ ELECTION_CONFIG: dict[str, tuple[str, str, int, str]] = {
     "ns2023":                   ("ns2023",              "1",    64, "p"),
     "ns2022":                   ("ns2022",              "0",    64, "p"),
     "pvrns2021_ns":             ("pvrns2021/tur1",      "0",    64, "p"),
-    "pvrns2021_pvr_r1":         ("pvrns2021/tur1",      "0",    2,  "p"),
-    "pvrns2021_pvr_r2":         ("pvrns2021/tur2",      "0",    2,  "p"),
+    "pvrns2021_pvr_r1":         ("pvrns2021/tur1",      "0",    256, "p"),
+    "pvrns2021_pvr_r2":         ("pvrns2021/tur2",      "0",    256, "p"),
     "pi2021_jul":               ("pi2021_07",           "0",    64, "p"),
     "pi2021_apr":               ("pi2021",              "none", 64, "p"),
 }

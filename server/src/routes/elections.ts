@@ -77,7 +77,7 @@ elections.get("/compare", (c) => {
   let makeParams: (elId: number) => unknown[];
 
   if (geoColumn && geoValue) {
-    geoSql = `SELECT ? AS election_id, p.id AS party_id, p.canonical_name AS party_name, SUM(v.total) AS votes
+    geoSql = `SELECT ? AS election_id, p.id AS party_id, COALESCE(ep.name_on_ballot, p.canonical_name) AS party_name, SUM(v.total) AS votes
        FROM votes v
        JOIN sections s ON s.election_id = v.election_id AND s.section_code = v.section_code
        JOIN locations l ON l.id = s.location_id
@@ -87,7 +87,7 @@ elections.get("/compare", (c) => {
        GROUP BY p.id`;
     makeParams = (elId) => [elId, elId, geoValue];
   } else {
-    geoSql = `SELECT ? AS election_id, p.id AS party_id, p.canonical_name AS party_name, SUM(v.total) AS votes
+    geoSql = `SELECT ? AS election_id, p.id AS party_id, COALESCE(ep.name_on_ballot, p.canonical_name) AS party_name, SUM(v.total) AS votes
        FROM votes v
        JOIN election_parties ep ON ep.election_id = v.election_id AND ep.ballot_number = v.party_number
        JOIN parties p ON p.id = ep.party_id
@@ -998,7 +998,7 @@ elections.get("/:id/results/geo/districts", (c) => {
       SELECT
         l.district_id,
         ep.party_id,
-        p.canonical_name AS party_name,
+        COALESCE(ep.name_on_ballot, p.canonical_name) AS party_name,
         p.color AS party_color,
         SUM(v.total) AS votes
       FROM votes v
@@ -1139,7 +1139,7 @@ elections.get("/:id/results/geo/municipalities", (c) => {
       SELECT
         l.municipality_id,
         ep.party_id,
-        p.canonical_name AS party_name,
+        COALESCE(ep.name_on_ballot, p.canonical_name) AS party_name,
         p.color AS party_color,
         SUM(v.total) AS votes
       FROM votes v
@@ -1272,7 +1272,7 @@ elections.get("/:id/results/geo/riks", (c) => {
       SELECT
         l.rik_id,
         ep.party_id,
-        p.canonical_name AS party_name,
+        COALESCE(ep.name_on_ballot, p.canonical_name) AS party_name,
         p.color AS party_color,
         SUM(v.total) AS votes
       FROM votes v
@@ -1385,7 +1385,7 @@ elections.get("/:id/results/geo", (c) => {
       SELECT
         l.municipality_id,
         ep.party_id,
-        p.canonical_name AS party_name,
+        COALESCE(ep.name_on_ballot, p.canonical_name) AS party_name,
         p.color AS party_color,
         SUM(v.total) AS votes
       FROM votes v

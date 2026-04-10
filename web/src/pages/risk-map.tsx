@@ -102,9 +102,9 @@ const CIK_ELECTION_MAP: Record<number, { prefix: string; type: "p" | "pk"; suffi
   11: { prefix: "mi2023_tur2/kr",   type: "p",  suffix: ".1", dataEl: 8 },
   12: { prefix: "ns2023",           type: "p",  suffix: ".1", dataEl: 64, video: "ns2023" },
   13: { prefix: "ns2022",           type: "p",  suffix: ".0", dataEl: 64, video: "ns2022" },
-  14: { prefix: "pvrns2021/tur1",   type: "p",  suffix: ".0", dataEl: 64, video: "pvrns2021" },
-  15: { prefix: "pvrns2021/tur1",   type: "p",  suffix: ".0", dataEl: 2,  video: "pvrns2021" },
-  16: { prefix: "pvrns2021/tur2",   type: "p",  suffix: ".0", dataEl: 2,  video: "pvrns2021" },
+  14: { prefix: "pvrns2021/tur1",   type: "p",  suffix: ".0", dataEl: 64,  video: "pvrns2021" },
+  15: { prefix: "pvrns2021/tur1",   type: "p",  suffix: ".0", dataEl: 256, video: "pvrns2021" },
+  16: { prefix: "pvrns2021/tur2",   type: "p",  suffix: ".0", dataEl: 256, video: "pvrns2021" },
   17: { prefix: "pi2021_07",        type: "p",  suffix: ".0", dataEl: 64, video: "pi2021_07" },
   18: { prefix: "pi2021",           type: "p",  suffix: "",   dataEl: 64, video: "pi2021" },
 };

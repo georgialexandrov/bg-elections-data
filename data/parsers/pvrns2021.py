@@ -26,6 +26,51 @@ from parsers.common import (
 )
 
 
+# ---------------------------------------------------------------------------
+# President ballots — CIK's cik_parties_*.txt for pvrns2021 president rounds
+# contains merged "committee-name-candidate-fullnames" strings. The per-ballot
+# cik_candidates_*.txt file has the clean breakdown:
+#     ballot_number;committee_or_party_name;list_position;candidate_names
+# Use it for both parties and candidates instead of the broken cik_parties file.
+# ---------------------------------------------------------------------------
+
+def parse_president_parties_and_candidates(
+    candidates_path: str, election_id: int, cur: sqlite3.Cursor
+) -> tuple[int, int]:
+    """Populate parties and candidates for a pvrns2021 president round.
+
+    Returns (parties_inserted, candidates_inserted).
+    """
+    party_rows: list[tuple[int, int, str]] = []
+    cand_rows: list[tuple[int, str | None, int, str, str]] = []
+
+    for line in read_lines(candidates_path):
+        p = line.split(";")
+        if len(p) < 4:
+            continue
+        ballot = safe_int(p[0])
+        if ballot is None:
+            continue
+        party_name = p[1].strip()
+        list_pos   = p[2].strip()
+        cand_name  = p[3].strip()
+        if not party_name:
+            continue
+        party_rows.append((election_id, ballot, party_name))
+        cand_rows.append((election_id, None, ballot, list_pos, cand_name))
+
+    cur.executemany(
+        "INSERT INTO parties (election_id, number, name) VALUES (?,?,?)",
+        party_rows,
+    )
+    cur.executemany(
+        "INSERT INTO candidates (election_id, rik_code, party_number, list_position, name) "
+        "VALUES (?,?,?,?,?)",
+        cand_rows,
+    )
+    return len(party_rows), len(cand_rows)
+
+
 ELECTIONS = [
     {
         "slug":    "pvrns2021_ns",
@@ -290,13 +335,22 @@ def process_election(e: dict, cur: sqlite3.Cursor) -> dict:
     if f:
         stats["sections"] = parse_sections(f, election_id, cur)
 
-    f = find_file(data_dir, "cik_parties")
-    if f:
-        stats["parties"] = parse_cik_parties(f, election_id, cur)
+    if e["type"] == "president":
+        # CIK's cik_parties file for president rounds merges committee name
+        # with candidate full names. Use cik_candidates as the source of truth.
+        cf = find_file(data_dir, "cik_candidates", "local_candidates", "candidates")
+        if cf:
+            n_parties, n_cands = parse_president_parties_and_candidates(cf, election_id, cur)
+            stats["parties"] = n_parties
+            stats["candidates"] = n_cands
+    else:
+        f = find_file(data_dir, "cik_parties")
+        if f:
+            stats["parties"] = parse_cik_parties(f, election_id, cur)
 
-    f = find_file(data_dir, "local_candidates", "cik_candidates", "candidates")
-    if f:
-        stats["candidates"] = parse_local_candidates(f, election_id, cur)
+        f = find_file(data_dir, "local_candidates", "cik_candidates", "candidates")
+        if f:
+            stats["candidates"] = parse_local_candidates(f, election_id, cur)
 
     f = find_file(data_dir, "protocols")
     if f:

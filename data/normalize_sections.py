@@ -33,6 +33,9 @@ from pathlib import Path
 
 DB_PATH = Path(os.environ.get("ELECTIONS_DB", Path(__file__).parent.parent / "elections.db"))
 GEOCODE_CACHE_PATH = Path(__file__).parent / "geocode_cache.json"
+# Snapshot of (ekatte|normalized_address) → {lat, lng, protocol_address} produced by
+# data/dump_location_cache.py after a successful geocode / CIK scrape. Survives rebuilds.
+LOCATION_CACHE_PATH = Path(__file__).parent / "location_cache.json"
 
 
 def normalize_address(addr: str) -> str:
@@ -178,14 +181,15 @@ def build_locations(cur: sqlite3.Cursor) -> int:
     cur.executescript("""
         DROP TABLE IF EXISTS locations;
         CREATE TABLE locations (
-            id              INTEGER PRIMARY KEY,
-            ekatte          TEXT,
-            settlement_name TEXT,
-            address         TEXT,
-            lat             REAL,
-            lng             REAL,
-            geocode_source  TEXT,
-            location_type   TEXT
+            id               INTEGER PRIMARY KEY,
+            ekatte           TEXT,
+            settlement_name  TEXT,
+            address          TEXT,
+            lat              REAL,
+            lng              REAL,
+            geocode_source   TEXT,
+            location_type    TEXT,
+            protocol_address TEXT
         );
     """)
 
@@ -194,11 +198,64 @@ def build_locations(cur: sqlite3.Cursor) -> int:
         loc_rows,
     )
 
-    # Step 4: restore coordinates from geocode cache
-    restored = restore_coordinates_from_cache(cur, loc_rows)
-    print(f"  {restored:,} locations restored coordinates from cache")
+    # Step 4: restore coordinates + protocol addresses.
+    # location_cache.json is authoritative — it holds the output of prior
+    # geocoding + CIK scraping runs, so a rebuild keeps that work.
+    # Fall back to the raw geocode_cache.json for anything missing.
+    cache_restored = restore_from_location_cache(cur, loc_rows)
+    print(f"  {cache_restored['coords']:,} locations restored coordinates from location_cache.json")
+    print(f"  {cache_restored['proto']:,} locations restored protocol_address from location_cache.json")
+
+    legacy_restored = restore_coordinates_from_cache(cur, loc_rows)
+    if legacy_restored:
+        print(f"  {legacy_restored:,} additional coordinates restored from legacy geocode_cache.json")
 
     return section_to_loc
+
+
+def restore_from_location_cache(cur: sqlite3.Cursor, loc_rows: list[tuple]) -> dict[str, int]:
+    """Fill lat/lng/protocol_address from data/location_cache.json.
+
+    Key format: "{ekatte}|{normalized_address}" — matches dump_location_cache.py.
+    """
+    if not LOCATION_CACHE_PATH.exists():
+        print("  No location_cache.json found — skip persistent restore")
+        return {"coords": 0, "proto": 0}
+
+    with open(LOCATION_CACHE_PATH, encoding="utf-8") as f:
+        cache = json.load(f)
+
+    coords = 0
+    proto  = 0
+    for loc_id, ekatte, settlement_name, address in loc_rows:
+        ek = (ekatte or "").strip()
+        addr_norm = normalize_address(address) if address else ""
+        key = f"{ek}|{addr_norm}"
+        if not key or key == "|":
+            continue
+        entry = cache.get(key)
+        if not entry:
+            continue
+
+        lat = entry.get("lat")
+        lng = entry.get("lng")
+        if lat is not None and lng is not None:
+            cur.execute(
+                "UPDATE locations SET lat = ?, lng = ?, "
+                "geocode_source = COALESCE(?, geocode_source) WHERE id = ?",
+                (lat, lng, entry.get("geocode_source"), loc_id),
+            )
+            coords += 1
+
+        proto_addr = entry.get("protocol_address")
+        if proto_addr:
+            cur.execute(
+                "UPDATE locations SET protocol_address = ? WHERE id = ?",
+                (proto_addr, loc_id),
+            )
+            proto += 1
+
+    return {"coords": coords, "proto": proto}
 
 
 def rebuild_sections(cur: sqlite3.Cursor, section_to_loc: dict[str, int]) -> None:
