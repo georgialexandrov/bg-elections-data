@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import {
+  getAbroadByCountry,
   getGeoResults,
   getGeoResultsLean,
   type GeoLevel,
@@ -21,6 +22,15 @@ export function useGeoResultsLean(electionId: string | number | undefined) {
   return useQuery({
     queryKey: ["geo-results-lean", electionId],
     queryFn: () => getGeoResultsLean(electionId!),
+    enabled: electionId != null,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useAbroadByCountry(electionId: string | number | undefined) {
+  return useQuery({
+    queryKey: ["abroad-by-country", electionId],
+    queryFn: () => getAbroadByCountry(electionId!),
     enabled: electionId != null,
     staleTime: 5 * 60_000,
   });

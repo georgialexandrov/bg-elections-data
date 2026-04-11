@@ -258,6 +258,35 @@ export interface GeoResultsLeanResponse {
   municipalities: GeoMunicipalityLean[];
 }
 
+// ---------- abroad (per-country) ----------
+
+export interface AbroadCountry {
+  iso2: string;
+  name: string;
+  registered_voters: number;
+  actual_voters: number;
+  total_votes: number;
+  winner: {
+    party_id: number;
+    name: string;
+    color: string;
+    votes: number;
+    pct: number;
+  } | null;
+  parties: {
+    party_id: number;
+    name: string;
+    color: string;
+    votes: number;
+    pct: number;
+  }[];
+}
+
+export interface AbroadByCountryResponse {
+  election: Election;
+  countries: AbroadCountry[];
+}
+
 // ---------- geography lookups ----------
 
 export interface GeoEntity {

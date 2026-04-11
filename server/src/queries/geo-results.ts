@@ -1,5 +1,12 @@
 import type { Database as DatabaseType } from "better-sqlite3";
-import { BALLOT_JOIN_SQL, BALLOT_NAME_SQL } from "../db/ballot.js";
+import {
+  BALLOT_JOIN_SQL,
+  BALLOT_NAME_SQL,
+  MAYOR_BALLOT_NAME_SQL,
+  MAYOR_CANDIDATE_JOIN_SQL,
+  isMayorCandidateType,
+} from "../db/ballot.js";
+import { BG_COUNTRY_TO_ISO2, ISO2_TO_BG_NAME } from "../lib/country-iso.js";
 
 /**
  * Per-area aggregated election results, with the GeoJSON geometry attached.
@@ -65,6 +72,21 @@ export function getGeoResults(
 ): GeoArea[] {
   const cfg = LEVEL_CONFIG[level];
 
+  // Mayor-type elections at the municipality level have one candidate per
+  // (municipality, ballot). Joining candidates lets the panel show real names
+  // instead of party labels. At higher levels (district / rik) the same ballot
+  // number maps to different candidates per municipality, so the join would
+  // produce nonsense and we keep the party label.
+  const electionType = (
+    db
+      .prepare("SELECT type FROM elections WHERE id = ?")
+      .get(electionId) as { type: string } | undefined
+  )?.type;
+  const useCandidate =
+    level === "municipality" && isMayorCandidateType(electionType);
+  const nameSql = useCandidate ? MAYOR_BALLOT_NAME_SQL : BALLOT_NAME_SQL;
+  const candidateJoin = useCandidate ? MAYOR_CANDIDATE_JOIN_SQL : "";
+
   // Voter totals per area
   const voterRows = db
     .prepare(
@@ -118,13 +140,14 @@ export function getGeoResults(
       `SELECT
          l.${cfg.locationColumn} AS area_id,
          ep.party_id,
-         ${BALLOT_NAME_SQL} AS party_name,
+         ${nameSql} AS party_name,
          p.color AS party_color,
          SUM(v.total) AS votes
        FROM votes v
        JOIN sections s ON s.election_id = v.election_id AND s.section_code = v.section_code
        JOIN locations l ON l.id = s.location_id
        ${BALLOT_JOIN_SQL}
+       ${candidateJoin}
        WHERE v.election_id = ?
        GROUP BY l.${cfg.locationColumn}, ep.party_id`,
     )
@@ -160,75 +183,84 @@ export function getGeoResults(
     )
     .all() as { id: number; name: string; geo: string }[];
 
-  const result = areas.map((area) =>
+  return areas.map((area) =>
     buildGeoArea(area, voterMap, centroidMap, areaPartyMap),
   );
-
-  // Append a synthetic "Чужбина" aggregate for the municipality level only.
-  // Abroad sections have district_id / municipality_id / rik_id = NULL, so
-  // they're invisible in the joins above. We build one extra region that
-  // rolls up every abroad section and renders as a circle east of Bulgaria.
-  if (level === "municipality") {
-    const abroad = buildAbroadGeoArea(db, electionId);
-    if (abroad) result.push(abroad);
-  }
-
-  return result;
 }
 
-// ---------- abroad synthetic region ----------
+// ---------- abroad, split by country ----------
 
 /**
- * Circle polygon approximated as a 64-sided regular n-gon. Used as the
- * synthetic boundary for the aggregated abroad region so the existing
- * tile-renderer in district-pie-map can treat it like any other
- * municipality.
+ * Per-country roll-up of abroad sections. The main /results map shows
+ * Bulgaria. This feeds a small world-map inset that colours each country
+ * with the same tile-density renderer, so the diaspora vote is visible
+ * as a second surface rather than as a synthetic circle glued to the
+ * Bulgaria map.
+ *
+ * Country names come from the prefix of `locations.settlement_name`
+ * ("Норвегия, Осло" → "Норвегия") and are mapped to ISO-3166-1 alpha-2
+ * via BG_COUNTRY_TO_ISO2. Historical aliases ("Германия ФР" / "ФР
+ * Германия", "Великобритания" / "Обединено кралство ...") collapse
+ * into one entry per ISO-2. The frontend joins by iso2 against a
+ * shipped world-countries GeoJSON.
  */
-function buildCirclePolygon(
-  center: [number, number],
-  radius: number,
-  points = 64,
-): { type: "Polygon"; coordinates: [number, number][][] } {
-  const ring: [number, number][] = [];
-  for (let i = 0; i < points; i++) {
-    const angle = (i / points) * 2 * Math.PI;
-    ring.push([
-      center[0] + radius * Math.cos(angle),
-      center[1] + radius * Math.sin(angle),
-    ]);
-  }
-  ring.push(ring[0]); // close the ring
-  return { type: "Polygon", coordinates: [ring] };
+export interface AbroadCountryResult {
+  iso2: string;
+  name: string;
+  registered_voters: number;
+  actual_voters: number;
+  total_votes: number;
+  winner: {
+    party_id: number;
+    name: string;
+    color: string;
+    votes: number;
+    pct: number;
+  } | null;
+  parties: {
+    party_id: number;
+    name: string;
+    color: string;
+    votes: number;
+    pct: number;
+  }[];
 }
 
-function buildAbroadGeoArea(
+const COUNTRY_PREFIX_SQL = `
+  CASE
+    WHEN INSTR(l.settlement_name, ',') > 0
+      THEN TRIM(SUBSTR(l.settlement_name, 1, INSTR(l.settlement_name, ',') - 1))
+    ELSE l.settlement_name
+  END`;
+
+export function getAbroadByCountry(
   db: DatabaseType,
   electionId: number | string,
-): GeoArea | null {
-  const voters = db
+): AbroadCountryResult[] {
+  const voterRows = db
     .prepare(
       `SELECT
+         ${COUNTRY_PREFIX_SQL} AS country,
          SUM(p.registered_voters) AS registered_voters,
          SUM(p.actual_voters)     AS actual_voters,
          SUM(p.null_votes)        AS null_votes
        FROM protocols p
        JOIN sections s ON s.election_id = p.election_id AND s.section_code = p.section_code
        JOIN locations l ON l.id = s.location_id
-       WHERE p.election_id = ? AND l.district_id IS NULL`,
+       WHERE p.election_id = ? AND l.district_id IS NULL
+       GROUP BY country`,
     )
-    .get(electionId) as
-    | {
-        registered_voters: number | null;
-        actual_voters: number | null;
-        null_votes: number | null;
-      }
-    | undefined;
-
-  if (!voters || !voters.actual_voters) return null;
+    .all(electionId) as {
+    country: string;
+    registered_voters: number | null;
+    actual_voters: number | null;
+    null_votes: number | null;
+  }[];
 
   const voteRows = db
     .prepare(
       `SELECT
+         ${COUNTRY_PREFIX_SQL} AS country,
          ep.party_id,
          ${BALLOT_NAME_SQL} AS party_name,
          p.color            AS party_color,
@@ -238,89 +270,125 @@ function buildAbroadGeoArea(
        JOIN locations l ON l.id = s.location_id
        ${BALLOT_JOIN_SQL}
        WHERE v.election_id = ? AND l.district_id IS NULL
-       GROUP BY ep.party_id`,
+       GROUP BY country, ep.party_id`,
     )
     .all(electionId) as {
+    country: string;
     party_id: number;
     party_name: string;
     party_color: string | null;
     votes: number;
   }[];
 
-  if (voteRows.length === 0) return null;
+  // Merge aliases into one bucket per ISO-2.
+  interface Bucket {
+    registered: number;
+    actual: number;
+    null_votes: number;
+    parties: Map<
+      number,
+      { name: string; color: string; votes: number }
+    >;
+  }
+  const byIso = new Map<string, Bucket>();
+  const getBucket = (iso: string): Bucket => {
+    let b = byIso.get(iso);
+    if (!b) {
+      b = { registered: 0, actual: 0, null_votes: 0, parties: new Map() };
+      byIso.set(iso, b);
+    }
+    return b;
+  };
 
-  // Abroad voting quirk: `registered_voters` from the protocol is the
-  // PRE-registered count (~30k people who signed up before the election)
-  // but `actual_voters` includes walk-ins who showed up with an ID
-  // (~150k total). Using registered as the denominator makes party shares
-  // exceed 100% and breaks the tile renderer, so we treat the actual
-  // turnout as the effective "electorate" for the abroad region. There's
-  // no meaningful "non-voter" pool abroad either way.
-  const actual_voters = voters.actual_voters ?? 0;
-  const registered_voters = actual_voters;
-  const null_votes = voters.null_votes ?? 0;
-  const party_votes = voteRows.reduce((sum, r) => sum + r.votes, 0);
-  const total_votes = party_votes + null_votes;
-
-  const parties = voteRows
-    .map((r) => ({
-      party_id: r.party_id,
-      name: r.party_name,
-      color: r.party_color ?? "#CCCCCC",
-      votes: r.votes,
-      pct:
-        total_votes > 0
-          ? Math.round((r.votes / total_votes) * 10000) / 100
-          : 0,
-    }))
-    .sort((a, b) => b.votes - a.votes);
-
-  if (null_votes > 0) {
-    parties.push({
-      party_id: -1,
-      name: NULL_VOTES_LABEL,
-      color: NULL_VOTES_COLOR,
-      votes: null_votes,
-      pct:
-        total_votes > 0
-          ? Math.round((null_votes / total_votes) * 10000) / 100
-          : 0,
-    });
-    parties.sort((a, b) => b.votes - a.votes);
+  for (const row of voterRows) {
+    const iso = BG_COUNTRY_TO_ISO2[row.country];
+    if (!iso) continue;
+    const b = getBucket(iso);
+    b.registered += row.registered_voters ?? 0;
+    b.actual += row.actual_voters ?? 0;
+    b.null_votes += row.null_votes ?? 0;
   }
 
-  const winner = parties.find((p) => p.party_id !== -1) ?? null;
+  for (const row of voteRows) {
+    const iso = BG_COUNTRY_TO_ISO2[row.country];
+    if (!iso) continue;
+    const b = getBucket(iso);
+    const existing = b.parties.get(row.party_id);
+    if (existing) {
+      existing.votes += row.votes;
+    } else {
+      b.parties.set(row.party_id, {
+        name: row.party_name,
+        color: row.party_color ?? "#CCCCCC",
+        votes: row.votes,
+      });
+    }
+  }
 
-  // Circle north of Bulgaria (over Romania geographically), so it is
-  // visible in the default map viewport without panning. Radius ~45 km,
-  // padding from Bulgaria's northern edge (~44.2°N) is ~0.3°.
-  const geo = buildCirclePolygon([25.5, 44.9], 0.4);
+  const result: AbroadCountryResult[] = [];
+  for (const [iso2, b] of byIso) {
+    if (b.actual === 0) continue;
+    // Same quirk as the old whole-abroad aggregate: pre-registration
+    // undercounts walk-in voters abroad, so use actual as the
+    // effective denominator. There's no meaningful "non-voter" pool.
+    const actual_voters = b.actual;
+    const registered_voters = actual_voters;
+    const party_votes = Array.from(b.parties.values()).reduce(
+      (s, p) => s + p.votes,
+      0,
+    );
+    const total_votes = party_votes + b.null_votes;
 
-  return {
-    // 99999 is safe because real municipality ids are small positive
-    // integers and -1 is already used as a "click on empty space"
-    // sentinel by the map click handler. Using a distinct out-of-range
-    // positive id avoids clashing with either.
-    id: 99999,
-    name: "Чужбина",
-    geo,
-    centroid: null,
-    registered_voters,
-    actual_voters,
-    // No "not showed up" pool abroad — registered is set equal to actual above.
-    non_voters: 0,
-    total_votes,
-    winner: winner
-      ? {
-          party_id: winner.party_id,
-          name: winner.name,
-          color: winner.color,
-          votes: winner.votes,
-          pct: winner.pct,
-        }
-      : null,
-    parties,
-  };
+    const parties = Array.from(b.parties.entries())
+      .map(([party_id, data]) => ({
+        party_id,
+        name: data.name,
+        color: data.color,
+        votes: data.votes,
+        pct:
+          total_votes > 0
+            ? Math.round((data.votes / total_votes) * 10000) / 100
+            : 0,
+      }))
+      .sort((a, b) => b.votes - a.votes);
+
+    if (b.null_votes > 0) {
+      parties.push({
+        party_id: -1,
+        name: NULL_VOTES_LABEL,
+        color: NULL_VOTES_COLOR,
+        votes: b.null_votes,
+        pct:
+          total_votes > 0
+            ? Math.round((b.null_votes / total_votes) * 10000) / 100
+            : 0,
+      });
+      parties.sort((a, b) => b.votes - a.votes);
+    }
+
+    const winner = parties.find((p) => p.party_id !== -1) ?? null;
+
+    result.push({
+      iso2,
+      name: ISO2_TO_BG_NAME[iso2] ?? iso2,
+      registered_voters,
+      actual_voters,
+      total_votes,
+      winner: winner
+        ? {
+            party_id: winner.party_id,
+            name: winner.name,
+            color: winner.color,
+            votes: winner.votes,
+            pct: winner.pct,
+          }
+        : null,
+      parties,
+    });
+  }
+
+  result.sort((a, b) => b.actual_voters - a.actual_voters);
+  return result;
 }
 
 // ---------- legacy /results/geo (municipality, lean shape) ----------
@@ -359,18 +427,30 @@ export function getGeoResultsLean(
   db: DatabaseType,
   electionId: number | string,
 ): GeoMunicipalityLean[] {
+  // Mayor-type local elections have one candidate per (municipality, ballot),
+  // so the per-municipality aggregate can show real names.
+  const electionType = (
+    db
+      .prepare("SELECT type FROM elections WHERE id = ?")
+      .get(electionId) as { type: string } | undefined
+  )?.type;
+  const useCandidate = isMayorCandidateType(electionType);
+  const nameSql = useCandidate ? MAYOR_BALLOT_NAME_SQL : BALLOT_NAME_SQL;
+  const candidateJoin = useCandidate ? MAYOR_CANDIDATE_JOIN_SQL : "";
+
   const voteRows = db
     .prepare(
       `SELECT
          l.municipality_id,
          ep.party_id,
-         ${BALLOT_NAME_SQL} AS party_name,
+         ${nameSql} AS party_name,
          p.color AS party_color,
          SUM(v.total) AS votes
        FROM votes v
        JOIN sections s ON s.election_id = v.election_id AND s.section_code = v.section_code
        JOIN locations l ON l.id = s.location_id
        ${BALLOT_JOIN_SQL}
+       ${candidateJoin}
        WHERE v.election_id = ?
        GROUP BY l.municipality_id, ep.party_id`,
     )

@@ -34,6 +34,7 @@ import {
   getSectionsGeo,
 } from "../queries/sections.js";
 import {
+  getAbroadByCountry,
   getGeoResults,
   getGeoResultsLean,
 } from "../queries/geo-results.js";
@@ -349,6 +350,17 @@ elections.get("/:id/results/geo/riks", (c) => {
   const election = getElection(db, id);
   if (!election) return c.json({ error: "Election not found" }, 404);
   return c.json({ election, riks: getGeoResults(db, id, "rik") });
+});
+
+elections.get("/:id/results/abroad-by-country", (c) => {
+  const db = getDb();
+  const { id } = c.req.param();
+  if (!/^\d+$/.test(id)) {
+    return c.json({ error: "Election ID must be numeric" }, 400);
+  }
+  const election = getElection(db, id);
+  if (!election) return c.json({ error: "Election not found" }, 404);
+  return c.json({ election, countries: getAbroadByCountry(db, id) });
 });
 
 elections.get("/:id/results/geo", (c) => {

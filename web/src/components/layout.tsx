@@ -120,42 +120,41 @@ export default function Layout() {
         </button>
       </nav>
 
-      {/* Mobile dropdown menu */}
+      {/* Mobile dropdown menu — nav links + search in one drawer so
+          the navbar stays compact when nothing is open */}
       {menuOpen && (
-        <div className="flex flex-col gap-1 border-b border-border bg-background px-3 py-2 md:hidden">
-          {(electionId || elections.length > 0) && NAV_ITEMS.map((item) => {
-            const eid = electionId ?? String(elections[0]?.id);
-            return (
+        <div className="relative z-30 flex flex-col gap-2 border-b border-border bg-background px-3 py-2 md:hidden">
+          <div className="flex flex-col gap-1">
+            {(electionId || elections.length > 0) && NAV_ITEMS.map((item) => {
+              const eid = electionId ?? String(elections[0]?.id);
+              return (
+                <NavLink
+                  key={item.path}
+                  to={`/${eid}/${item.path}`}
+                  onClick={() => setMenuOpen(false)}
+                  className={navLinkClass}
+                >
+                  {item.label}
+                </NavLink>
+              );
+            })}
+            {STANDALONE_NAV.map((item) => (
               <NavLink
                 key={item.path}
-                to={`/${eid}/${item.path}`}
+                to={item.path}
                 onClick={() => setMenuOpen(false)}
                 className={navLinkClass}
               >
                 {item.label}
               </NavLink>
-            );
-          })}
-          {STANDALONE_NAV.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              onClick={() => setMenuOpen(false)}
-              className={navLinkClass}
-            >
-              {item.label}
-            </NavLink>
-          ))}
+            ))}
+          </div>
+          <SearchBox
+            variant="compact"
+            placeholder="Търсете секция по адрес, град или училище..."
+          />
         </div>
       )}
-
-      {/* Mobile-only search row — persistent and above the fold without the hamburger in the way */}
-      <div className="relative z-30 shrink-0 border-b border-border bg-background px-3 py-1.5 md:hidden">
-        <SearchBox
-          variant="compact"
-          placeholder="Търсете секция по адрес, град или училище..."
-        />
-      </div>
 
       {/* Main content */}
       <main className="relative flex-1 overflow-hidden">

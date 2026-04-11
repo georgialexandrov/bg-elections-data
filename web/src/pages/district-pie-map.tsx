@@ -1,14 +1,18 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { useParams } from "react-router";
+import { useParams, useSearchParams } from "react-router";
 import { trackEvent } from "@/lib/analytics.js";
 import { Map as MapComponent, useMap, MapControls } from "@/components/ui/map";
 import MapLibreGL from "maplibre-gl";
 import bbox from "@turf/bbox";
 import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 import { point as turfPoint } from "@turf/helpers";
-import { useGeoResults } from "@/lib/hooks/use-geo-results.js";
+import {
+  useAbroadByCountry,
+  useGeoResults,
+} from "@/lib/hooks/use-geo-results.js";
 import type { GeoLevel } from "@/lib/api/geo-results.js";
-import type { Election, GeoArea } from "@/lib/api/types.js";
+import type { AbroadCountry, Election, GeoArea } from "@/lib/api/types.js";
+import { AbroadMap } from "@/components/map/abroad-map.js";
 
 // Local alias — district-pie-map narrows the geometry to polygon variants.
 type GeoRegion = Omit<GeoArea, "geo"> & {
@@ -31,11 +35,8 @@ interface AggregatedParty {
   pctCik: number | null;
 }
 
-// Shifted north + slightly zoomed out so the synthetic "Чужбина" circle
-// (center [25.5, 44.9], radius 0.4°) above Bulgaria is in the initial
-// viewport with padding from the country.
-const BULGARIA_CENTER: [number, number] = [25.3, 43.4];
-const BULGARIA_ZOOM = 6.8;
+const BULGARIA_CENTER: [number, number] = [25.3, 42.7];
+const BULGARIA_ZOOM = 6.9;
 const NON_VOTER_COLOR = "#c0c0c0";
 const TILE_SOURCE = "region-tiles";
 const TILE_LAYER = "region-tiles-fill";
@@ -195,6 +196,7 @@ function isCikEligible(partyId: number): boolean {
 function aggregateParties(
   regions: GeoRegion[],
   showNonVoters: boolean,
+  abroadCountries: AbroadCountry[] = [],
 ): AggregatedParty[] {
   const byName = new Map<
     string,
@@ -203,21 +205,28 @@ function aggregateParties(
   let registeredTotal = 0;
   let cikTotal = 0;
 
+  const addParty = (p: {
+    party_id: number;
+    name: string;
+    color: string;
+    votes: number;
+  }) => {
+    if (isCikEligible(p.party_id)) cikTotal += p.votes;
+    const existing = byName.get(p.name);
+    if (existing) {
+      existing.votes += p.votes;
+    } else {
+      byName.set(p.name, {
+        color: p.color || "#555",
+        votes: p.votes,
+        partyId: p.party_id,
+      });
+    }
+  };
+
   for (const r of regions) {
     registeredTotal += r.registered_voters;
-    for (const p of r.parties) {
-      if (isCikEligible(p.party_id)) cikTotal += p.votes;
-      const existing = byName.get(p.name);
-      if (existing) {
-        existing.votes += p.votes;
-      } else {
-        byName.set(p.name, {
-          color: p.color || "#555",
-          votes: p.votes,
-          partyId: p.party_id,
-        });
-      }
-    }
+    for (const p of r.parties) addParty(p);
     if (showNonVoters) {
       const nv = r.registered_voters - r.actual_voters;
       if (nv > 0) {
@@ -235,6 +244,18 @@ function aggregateParties(
     }
   }
 
+  // Abroad contributes to the national legend even though it renders
+  // on the world-map inset, not on the Bulgaria map. Dropping it would
+  // break the 4% CIK threshold because the denominator shrinks —
+  // Velichie was visibly moving from 4.00 → 3.77 with abroad stripped.
+  // Abroad has no "non-voter" pool: registered_voters == actual_voters
+  // (pre-registration undercounts walk-ins, see server comment), so
+  // there's no "Негласували" contribution.
+  for (const ac of abroadCountries) {
+    registeredTotal += ac.registered_voters;
+    for (const p of ac.parties) addParty(p);
+  }
+
   const result: AggregatedParty[] = [];
   for (const [name, { color, votes, partyId }] of byName) {
     result.push({
@@ -247,6 +268,70 @@ function aggregateParties(
         isCikEligible(partyId) && cikTotal > 0
           ? (votes / cikTotal) * 100
           : null,
+    });
+  }
+  result.sort((a, b) => b.totalVotes - a.totalVotes);
+  return result;
+}
+
+// Map a per-country abroad aggregate onto the same AggregatedParty
+// shape used by the Bulgarian legend. Abroad has no "not showed up"
+// pool, so `registered` equals `actual` (see server: the protocol's
+// pre-registration undercounts walk-in voters). That means the
+// "Registered share" column collapses onto the CIK-rule share.
+function aggregateAbroadCountryParties(country: AbroadCountry): AggregatedParty[] {
+  const registeredTotal = country.registered_voters;
+  const cikTotal = country.parties
+    .filter((p) => p.party_id > 0)
+    .reduce((sum, p) => sum + p.votes, 0);
+
+  return country.parties.map((p) => ({
+    name: p.name,
+    color: p.color,
+    totalVotes: p.votes,
+    pctRegistered: registeredTotal > 0 ? (p.votes / registeredTotal) * 100 : 0,
+    pctCik: p.party_id > 0 && cikTotal > 0 ? (p.votes / cikTotal) * 100 : null,
+  }));
+}
+
+// Abroad-only national aggregate for the "Чужбина" tab default view.
+// Sums every country into one party list. The Bulgaria tab uses
+// aggregateParties(regions, …, abroadCountries) to merge abroad into
+// the national CIK total; this one is the flip side — just abroad.
+function aggregateAbroadNationalParties(
+  abroadCountries: AbroadCountry[],
+): AggregatedParty[] {
+  const byName = new Map<
+    string,
+    { color: string; votes: number; partyId: number }
+  >();
+  let registeredTotal = 0;
+  let cikTotal = 0;
+  for (const ac of abroadCountries) {
+    registeredTotal += ac.registered_voters;
+    for (const p of ac.parties) {
+      if (isCikEligible(p.party_id)) cikTotal += p.votes;
+      const existing = byName.get(p.name);
+      if (existing) {
+        existing.votes += p.votes;
+      } else {
+        byName.set(p.name, {
+          color: p.color || "#555",
+          votes: p.votes,
+          partyId: p.party_id,
+        });
+      }
+    }
+  }
+  const result: AggregatedParty[] = [];
+  for (const [name, { color, votes, partyId }] of byName) {
+    result.push({
+      name,
+      color,
+      totalVotes: votes,
+      pctRegistered: registeredTotal > 0 ? (votes / registeredTotal) * 100 : 0,
+      pctCik:
+        isCikEligible(partyId) && cikTotal > 0 ? (votes / cikTotal) * 100 : null,
     });
   }
   result.sort((a, b) => b.totalVotes - a.totalVotes);
@@ -337,18 +422,24 @@ function TileDensityLayer({
   geoLevel,
   activeParty,
   selectedRegionId,
+  hoveredRegionId,
   onRegionClick,
+  onRegionHover,
 }: {
   regions: GeoRegion[];
   showNonVoters: boolean;
   geoLevel: GeoLevel;
   activeParty: string | null;
   selectedRegionId: number | null;
+  hoveredRegionId: number | null;
   onRegionClick: (regionId: number, lngLat: [number, number]) => void;
+  onRegionHover: (regionId: number | null) => void;
 }) {
   const { map, isLoaded } = useMap();
   const onClickRef = useRef(onRegionClick);
   onClickRef.current = onRegionClick;
+  const onHoverRef = useRef(onRegionHover);
+  onHoverRef.current = onRegionHover;
 
   const tileData = useMemo(
     () => computeAllTiles(regions, showNonVoters, geoLevel),
@@ -366,6 +457,61 @@ function TileDensityLayer({
     }),
     [regions],
   );
+
+  // Fit the viewport to the full set of municipalities on first load
+  // so Bulgaria is always fully in frame regardless of container size
+  // (mobile portrait, desktop with legend sidebar, etc). The extra
+  // top padding accounts for the absolute-positioned controls row,
+  // which can wrap to two lines on narrow viewports.
+  //
+  // The fit is deferred with a double-rAF + explicit `map.resize()`
+  // because on first mount the flex parent hasn't resolved its final
+  // height yet — fitting against the stale size made Bulgaria
+  // overflow the bottom once the legend sibling pushed the map
+  // container shorter.
+  const fittedRef = useRef(false);
+  useEffect(() => {
+    if (!map || !isLoaded || fittedRef.current || regions.length === 0) return;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const r of regions) {
+      const [x1, y1, x2, y2] = bbox(r.geo as any);
+      if (x1 < minX) minX = x1;
+      if (y1 < minY) minY = y1;
+      if (x2 > maxX) maxX = x2;
+      if (y2 > maxY) maxY = y2;
+    }
+    if (!isFinite(minX)) return;
+
+    const runFit = () => {
+      map.resize();
+      map.fitBounds(
+        [
+          [minX, minY],
+          [maxX, maxY],
+        ],
+        {
+          padding: { top: 96, bottom: 32, left: 24, right: 24 },
+          animate: false,
+          maxZoom: 8,
+        },
+      );
+      fittedRef.current = true;
+    };
+
+    const raf1 = requestAnimationFrame(() => {
+      const raf2 = requestAnimationFrame(runFit);
+      // Re-use the same ref so cleanup cancels whichever is pending.
+      (raf1 as unknown as { inner?: number }).inner = raf2;
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      const inner = (raf1 as unknown as { inner?: number }).inner;
+      if (inner != null) cancelAnimationFrame(inner);
+    };
+  }, [map, isLoaded, regions]);
 
   // Update fill-opacity reactively
   useEffect(() => {
@@ -425,6 +571,37 @@ function TileDensityLayer({
     };
   }, [map, isLoaded, borderData]);
 
+  // Highlight the hovered municipality's outline so the user can see
+  // *where* the tooltip data lives, even while mousing over tiles far
+  // from the boundary. Selected regions also get a thicker outline.
+  useEffect(() => {
+    if (!map || !isLoaded || !map.getLayer(BORDER_LAYER)) return;
+    const widthExpr: MapLibreGL.ExpressionSpecification | number =
+      hoveredRegionId != null || selectedRegionId != null
+        ? [
+            "case",
+            ["==", ["get", "id"], hoveredRegionId ?? -1],
+            2.5,
+            ["==", ["get", "id"], selectedRegionId ?? -1],
+            2,
+            0.6,
+          ]
+        : 1;
+    const colorExpr: MapLibreGL.ExpressionSpecification | string =
+      hoveredRegionId != null || selectedRegionId != null
+        ? [
+            "case",
+            ["==", ["get", "id"], hoveredRegionId ?? -1],
+            "#111",
+            ["==", ["get", "id"], selectedRegionId ?? -1],
+            "#333",
+            "#777",
+          ]
+        : "#666";
+    map.setPaintProperty(BORDER_LAYER, "line-width", widthExpr);
+    map.setPaintProperty(BORDER_LAYER, "line-color", colorExpr);
+  }, [map, isLoaded, hoveredRegionId, selectedRegionId]);
+
   useEffect(() => {
     if (!map || !isLoaded) return;
 
@@ -438,11 +615,20 @@ function TileDensityLayer({
     };
 
     const handleEnter = () => { map.getCanvas().style.cursor = "pointer"; };
-    const handleLeave = () => { map.getCanvas().style.cursor = ""; };
+    const handleLeave = () => {
+      map.getCanvas().style.cursor = "";
+      onHoverRef.current(null);
+    };
+
+    const handleMove = (e: MapLibreGL.MapLayerMouseEvent) => {
+      const regionId = e.features?.[0]?.properties?.region_id;
+      if (typeof regionId === "number") onHoverRef.current(regionId);
+    };
 
     map.on("click", TILE_LAYER, handleClick);
     map.on("mouseenter", TILE_LAYER, handleEnter);
     map.on("mouseleave", TILE_LAYER, handleLeave);
+    map.on("mousemove", TILE_LAYER, handleMove);
 
     // Click on empty space clears region selection
     map.on("click", (e: MapLibreGL.MapMouseEvent) => {
@@ -456,6 +642,7 @@ function TileDensityLayer({
       map.off("click", TILE_LAYER, handleClick);
       map.off("mouseenter", TILE_LAYER, handleEnter);
       map.off("mouseleave", TILE_LAYER, handleLeave);
+      map.off("mousemove", TILE_LAYER, handleMove);
     };
   }, [map, isLoaded]);
 
@@ -474,6 +661,8 @@ function PartyLegend({
   stats,
   activeParty,
   tappedParty,
+  interactive,
+  canClear,
   onHover,
   onTap,
   onClear,
@@ -483,18 +672,24 @@ function PartyLegend({
   stats: LegendStats;
   activeParty: string | null;
   tappedParty: string | null;
+  /** When false, party-row hover/tap does nothing and there's no
+   *  hover affordance. Used for the read-only map-hover preview. */
+  interactive: boolean;
+  /** Whether to render the × clear button. True iff something is
+   *  actually locked in (a selected region/country). */
+  canClear: boolean;
   onHover: (name: string | null) => void;
   onTap: (name: string) => void;
   onClear: () => void;
 }) {
   return (
-    <div className="absolute bottom-2 left-2 right-2 z-10 max-h-[40vh] w-auto overflow-y-auto rounded-md border bg-background/95 shadow-md backdrop-blur-sm md:bottom-auto md:left-auto md:top-3 md:right-3 md:max-h-[calc(100%-1rem)] md:w-80">
-      <div className="sticky top-0 border-b bg-background/95 px-3 py-2 backdrop-blur-sm">
+    <div className="flex h-full w-full flex-col overflow-y-auto bg-background">
+      <div className="sticky top-0 z-10 border-b bg-background px-3 py-2">
         <div className="flex items-center justify-between gap-2">
-          <span className="min-w-0 truncate text-xs font-medium">
+          <span className="min-w-0 truncate text-sm font-medium">
             {title ?? "Всички региони"}
           </span>
-          {(activeParty || title) && (
+          {canClear && (
             <button
               onClick={onClear}
               className="shrink-0 text-[10px] text-muted-foreground hover:text-foreground"
@@ -503,26 +698,31 @@ function PartyLegend({
             </button>
           )}
         </div>
-        <div className="mt-1 flex gap-3 text-[10px] tabular-nums text-muted-foreground">
+        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] tabular-nums text-muted-foreground">
           <span>{stats.registered.toLocaleString("bg-BG")} рег.</span>
           <span>{stats.actual.toLocaleString("bg-BG")} гл.</span>
           <span className="font-medium text-foreground">{stats.turnoutPct.toFixed(2)}%</span>
         </div>
       </div>
-      <div className="p-1">
+      <div className="min-h-0 flex-1 p-1">
         {parties.map((p) => {
           const isActive = activeParty === p.name;
           const isMuted = activeParty != null && !isActive;
           const isTapped = tappedParty === p.name;
+          const rowClass = interactive
+            ? `${isActive ? "bg-muted" : "hover:bg-muted/40"} cursor-pointer`
+            : "cursor-default";
           return (
             <button
               key={p.name}
-              onClick={() => onTap(p.name)}
-              onMouseEnter={() => onHover(p.name)}
-              onMouseLeave={() => onHover(null)}
-              className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left transition-opacity ${
-                isActive ? "bg-muted" : "hover:bg-muted/40"
-              } ${isMuted ? "opacity-30" : ""}`}
+              type="button"
+              disabled={!interactive}
+              onClick={interactive ? () => onTap(p.name) : undefined}
+              onMouseEnter={interactive ? () => onHover(p.name) : undefined}
+              onMouseLeave={interactive ? () => onHover(null) : undefined}
+              className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left transition-opacity ${rowClass} ${
+                isMuted ? "opacity-30" : ""
+              }`}
             >
               <span
                 className={`inline-block h-2.5 w-2.5 shrink-0 rounded-sm ${isTapped ? "ring-1 ring-foreground ring-offset-1" : ""}`}
@@ -560,9 +760,22 @@ function PartyLegend({
 export default function DistrictPieMap() {
   const { electionId } = useParams<{ electionId: string }>();
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Tab state lives in the URL (`?tab=abroad`) so the Abroad view is
+  // directly shareable. Defaults to "bg" when the param is missing.
+  const tab: "bg" | "abroad" =
+    searchParams.get("tab") === "abroad" ? "abroad" : "bg";
+
   const [showNonVoters, setShowNonVoters] = useState(true);
   const [geoLevel] = useState<GeoLevel>("municipalities");
   const [selectedRegion, setSelectedRegion] = useState<GeoRegion | null>(null);
+  const [selectedIsoCountry, setSelectedIsoCountry] = useState<string | null>(
+    null,
+  );
+  const [hoveredRegionId, setHoveredRegionId] = useState<number | null>(null);
+  const [hoveredIsoCountry, setHoveredIsoCountry] = useState<string | null>(
+    null,
+  );
   const [hoveredParty, setHoveredParty] = useState<string | null>(null);
   const [tappedParty, setTappedParty] = useState<string | null>(null);
 
@@ -574,14 +787,19 @@ export default function DistrictPieMap() {
     isLoading: loading,
     error: queryError,
   } = useGeoResults(electionId, geoLevel);
+  const { data: abroadData } = useAbroadByCountry(electionId);
   const election: Election | null = geoData?.election ?? null;
   const regions: GeoRegion[] = (geoData?.areas ?? []) as GeoRegion[];
+  const abroadCountries: AbroadCountry[] = abroadData?.countries ?? [];
   const error = queryError instanceof Error ? queryError.message : null;
   const isLocalElection = election?.type.startsWith("local_") ?? false;
 
   // Reset transient selection state whenever the underlying dataset changes.
   useEffect(() => {
     setSelectedRegion(null);
+    setSelectedIsoCountry(null);
+    setHoveredRegionId(null);
+    setHoveredIsoCountry(null);
     setHoveredParty(null);
     setTappedParty(null);
   }, [electionId, geoLevel]);
@@ -591,10 +809,23 @@ export default function DistrictPieMap() {
     [regions],
   );
 
+  const hoveredRegion = useMemo(
+    () => (hoveredRegionId != null ? regionMap.get(hoveredRegionId) ?? null : null),
+    [hoveredRegionId, regionMap],
+  );
+
+  const hoveredCountry = useMemo(
+    () =>
+      hoveredIsoCountry
+        ? abroadCountries.find((c) => c.iso2 === hoveredIsoCountry) ?? null
+        : null,
+    [hoveredIsoCountry, abroadCountries],
+  );
+
   // National-level or region-level party list
   const nationalParties = useMemo(
-    () => aggregateParties(regions, showNonVoters),
-    [regions, showNonVoters],
+    () => aggregateParties(regions, showNonVoters, abroadCountries),
+    [regions, showNonVoters, abroadCountries],
   );
 
   const regionParties = useMemo(
@@ -602,18 +833,147 @@ export default function DistrictPieMap() {
     [selectedRegion, showNonVoters],
   );
 
-  const legendParties = regionParties ?? nationalParties;
+  const selectedCountry = useMemo(
+    () =>
+      selectedIsoCountry
+        ? abroadCountries.find((c) => c.iso2 === selectedIsoCountry) ?? null
+        : null,
+    [selectedIsoCountry, abroadCountries],
+  );
+
+  const countryParties = useMemo(
+    () => (selectedCountry ? aggregateAbroadCountryParties(selectedCountry) : null),
+    [selectedCountry],
+  );
+
+  // Hover previews — same shape as the "selected" aggregates but
+  // only used when nothing is clicked/locked.
+  const hoveredRegionParties = useMemo(
+    () =>
+      hoveredRegion ? aggregateRegionParties(hoveredRegion, showNonVoters) : null,
+    [hoveredRegion, showNonVoters],
+  );
+
+  const hoveredCountryParties = useMemo(
+    () => (hoveredCountry ? aggregateAbroadCountryParties(hoveredCountry) : null),
+    [hoveredCountry],
+  );
+
+  // A map hover is previewed in the legend only when nothing is
+  // locked in. Selection always wins. In preview mode the legend is
+  // rendered non-interactively: no party-tap, no hover highlighting
+  // of tiles, because the user is driving the state with the cursor
+  // over the map, not the legend.
+  const isHoverPreview =
+    !selectedRegion &&
+    !selectedCountry &&
+    (hoveredRegion != null || hoveredCountry != null);
+
+  // National aggregate for the Abroad tab (sum across all countries).
+  // The Bulgaria tab uses `nationalParties` which already merges abroad
+  // into the CIK denominator (see aggregateParties).
+  const abroadNationalParties = useMemo(
+    () => aggregateAbroadNationalParties(abroadCountries),
+    [abroadCountries],
+  );
+
+  const legendParties = useMemo(() => {
+    // Priority: selected > hovered > tab default.
+    if (countryParties) return countryParties;
+    if (regionParties) return regionParties;
+    if (hoveredCountryParties) return hoveredCountryParties;
+    if (hoveredRegionParties) return hoveredRegionParties;
+    return tab === "abroad" ? abroadNationalParties : nationalParties;
+  }, [
+    countryParties,
+    regionParties,
+    hoveredCountryParties,
+    hoveredRegionParties,
+    tab,
+    abroadNationalParties,
+    nationalParties,
+  ]);
+
+  const legendTitle =
+    selectedCountry?.name ??
+    selectedRegion?.name ??
+    hoveredCountry?.name ??
+    hoveredRegion?.name ??
+    (tab === "abroad" ? "Всички държави" : null);
 
   const legendStats = useMemo((): LegendStats => {
-    const source = selectedRegion ? [selectedRegion] : regions;
-    const registered = source.reduce((s, r) => s + r.registered_voters, 0);
-    const actual = source.reduce((s, r) => s + r.actual_voters, 0);
+    if (selectedCountry) {
+      return {
+        registered: selectedCountry.registered_voters,
+        actual: selectedCountry.actual_voters,
+        turnoutPct: 100, // abroad has no meaningful "not showed up" pool
+      };
+    }
+    if (selectedRegion) {
+      const registered = selectedRegion.registered_voters;
+      const actual = selectedRegion.actual_voters;
+      return {
+        registered,
+        actual,
+        turnoutPct: registered > 0 ? (actual / registered) * 100 : 0,
+      };
+    }
+    if (hoveredCountry) {
+      return {
+        registered: hoveredCountry.registered_voters,
+        actual: hoveredCountry.actual_voters,
+        turnoutPct: 100,
+      };
+    }
+    if (hoveredRegion) {
+      const registered = hoveredRegion.registered_voters;
+      const actual = hoveredRegion.actual_voters;
+      return {
+        registered,
+        actual,
+        turnoutPct: registered > 0 ? (actual / registered) * 100 : 0,
+      };
+    }
+    if (tab === "abroad") {
+      let registered = 0;
+      let actual = 0;
+      for (const ac of abroadCountries) {
+        registered += ac.registered_voters;
+        actual += ac.actual_voters;
+      }
+      return {
+        registered,
+        actual,
+        turnoutPct: 100,
+      };
+    }
+    // Bulgaria tab national: include abroad (registered == actual
+    // there) so the stat row matches the denominator used by
+    // `aggregateParties`, which keeps Velichie at 4.00% (not 3.77).
+    let registered = 0;
+    let actual = 0;
+    for (const r of regions) {
+      registered += r.registered_voters;
+      actual += r.actual_voters;
+    }
+    for (const ac of abroadCountries) {
+      registered += ac.registered_voters;
+      actual += ac.actual_voters;
+    }
     return {
       registered,
       actual,
       turnoutPct: registered > 0 ? (actual / registered) * 100 : 0,
     };
-  }, [regions, selectedRegion]);
+  }, [
+    regions,
+    selectedRegion,
+    selectedCountry,
+    hoveredRegion,
+    hoveredCountry,
+    abroadCountries,
+    tab,
+  ]);
 
   const handleRegionClick = useCallback(
     (regionId: number, _lngLat: [number, number]) => {
@@ -627,9 +987,22 @@ export default function DistrictPieMap() {
       const isSelecting = region.id !== undefined;
       if (isSelecting) trackEvent("click_region", { region_id: regionId, region_name: region.name, election_id: electionId });
       setSelectedRegion((prev) => prev?.id === regionId ? null : region);
+      setSelectedIsoCountry(null);
       setTappedParty(null);
     },
-    [regionMap],
+    [regionMap, electionId],
+  );
+
+  const handleCountrySelect = useCallback(
+    (iso: string | null) => {
+      if (iso) {
+        trackEvent("click_abroad_country", { iso2: iso, election_id: electionId });
+      }
+      setSelectedIsoCountry((prev) => (prev === iso ? null : iso));
+      setSelectedRegion(null);
+      setTappedParty(null);
+    },
+    [electionId],
   );
 
   const handlePartyTap = useCallback((name: string) => {
@@ -639,9 +1012,33 @@ export default function DistrictPieMap() {
 
   const handleClear = useCallback(() => {
     setSelectedRegion(null);
+    setSelectedIsoCountry(null);
     setTappedParty(null);
     setHoveredParty(null);
   }, []);
+
+  const handleTabChange = useCallback(
+    (next: "bg" | "abroad") => {
+      if (next === tab) return;
+      trackEvent("switch_results_tab", { tab: next, election_id: electionId });
+      setSearchParams(
+        (prev) => {
+          const params = new URLSearchParams(prev);
+          if (next === "abroad") params.set("tab", "abroad");
+          else params.delete("tab");
+          return params;
+        },
+        { replace: false },
+      );
+      setSelectedRegion(null);
+      setSelectedIsoCountry(null);
+      setHoveredRegionId(null);
+      setHoveredIsoCountry(null);
+      setTappedParty(null);
+      setHoveredParty(null);
+    },
+    [tab, electionId, setSearchParams],
+  );
 
   if (isLocalElection) {
     return (
@@ -659,66 +1056,124 @@ export default function DistrictPieMap() {
   }
 
   return (
-    <div className="relative h-full w-full">
-      {/* Top-left controls */}
-      <div className="absolute top-2 left-2 z-10 flex flex-wrap items-center gap-1.5 md:top-3 md:left-3 md:gap-2">
-        {loading && !election && (
-          <div className="rounded-md border bg-background/95 px-3 py-2 shadow-md backdrop-blur-sm">
-            <span className="text-xs text-muted-foreground">Зареждане...</span>
+    // Flex layout: map fills the remaining space, legend is a sibling
+    // panel (not an overlay). On mobile the two stack vertically; the
+    // legend is capped at ~45vh with internal scroll so the map stays
+    // usable. On ≥md it's a 320px column on the right.
+    //
+    // If the legend height feels cramped on small phones we can swap
+    // the mobile layout for a collapsible bottom-sheet: wrap the
+    // <aside> in a controlled `collapsed` state and toggle between
+    // `h-10` (just the title bar) and `max-h-[45vh]` on a chevron tap.
+    <div className="flex h-full w-full flex-col md:flex-row">
+      <div className="relative min-h-0 flex-1">
+        {/* Top-left controls — still overlaid on the map */}
+        <div className="absolute top-2 left-2 z-10 flex flex-wrap items-center gap-1.5 md:top-3 md:left-3 md:gap-2">
+          {/* Tab switcher — Bulgaria / Abroad */}
+          <div className="inline-flex overflow-hidden rounded-md border bg-background/95 shadow-md backdrop-blur-sm">
+            <button
+              type="button"
+              onClick={() => handleTabChange("bg")}
+              className={`px-3 py-2 text-xs transition-colors ${
+                tab === "bg"
+                  ? "bg-foreground text-background"
+                  : "text-foreground hover:bg-muted/40"
+              }`}
+            >
+              България
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTabChange("abroad")}
+              className={`border-l px-3 py-2 text-xs transition-colors ${
+                tab === "abroad"
+                  ? "bg-foreground text-background"
+                  : "text-foreground hover:bg-muted/40"
+              }`}
+            >
+              Чужбина
+            </button>
           </div>
-        )}
-        {error && (
-          <div className="rounded-md border bg-background/95 px-3 py-2 shadow-md backdrop-blur-sm">
-            <span className="text-xs text-red-600">{error}</span>
-          </div>
-        )}
-        <label className="flex cursor-pointer items-center gap-1.5 rounded-md border bg-background/95 px-3 py-2 text-xs shadow-md backdrop-blur-sm">
-          <input
-            type="checkbox"
-            checked={showNonVoters}
-            onChange={(e) => setShowNonVoters(e.target.checked)}
-            className="accent-primary"
+
+          {loading && !election && (
+            <div className="rounded-md border bg-background/95 px-3 py-2 shadow-md backdrop-blur-sm">
+              <span className="text-xs text-muted-foreground">Зареждане...</span>
+            </div>
+          )}
+          {error && (
+            <div className="rounded-md border bg-background/95 px-3 py-2 shadow-md backdrop-blur-sm">
+              <span className="text-xs text-red-600">{error}</span>
+            </div>
+          )}
+          {tab === "bg" && (
+            <label className="flex cursor-pointer items-center gap-1.5 rounded-md border bg-background/95 px-3 py-2 text-xs shadow-md backdrop-blur-sm">
+              <input
+                type="checkbox"
+                checked={showNonVoters}
+                onChange={(e) => setShowNonVoters(e.target.checked)}
+                className="accent-primary"
+              />
+              Негласували
+            </label>
+          )}
+        </div>
+
+        {/* Map — swap full canvas between Bulgaria and world */}
+        {tab === "bg" ? (
+          <MapComponent
+            center={BULGARIA_CENTER}
+            zoom={BULGARIA_ZOOM}
+            className="h-full w-full"
+            loading={loading}
+            styles={{ light: BLANK_STYLE as any, dark: BLANK_STYLE as any }}
+          >
+            {regions.length > 0 && (
+              <>
+                <TileDensityLayer
+                  regions={regions}
+                  showNonVoters={showNonVoters}
+                  geoLevel={geoLevel}
+                  activeParty={activeParty}
+                  selectedRegionId={selectedRegion?.id ?? null}
+                  hoveredRegionId={hoveredRegionId}
+                  onRegionClick={handleRegionClick}
+                  onRegionHover={setHoveredRegionId}
+                />
+                <MapControls />
+              </>
+            )}
+          </MapComponent>
+        ) : (
+          <AbroadMap
+            electionId={electionId}
+            selectedIso={selectedIsoCountry}
+            hoveredIso={hoveredIsoCountry}
+            activeParty={isHoverPreview ? null : activeParty}
+            onSelect={handleCountrySelect}
+            onHoverChange={setHoveredIsoCountry}
           />
-          Негласували
-        </label>
+        )}
       </div>
 
-      {/* Party legend — right side */}
+      {/* Right-side legend panel. Sibling of the map, so the map's
+          effective width is viewport − 320px on desktop and the
+          country polygons never get clipped behind a popup. */}
       {legendParties.length > 0 && (
-        <PartyLegend
-          parties={legendParties}
-          title={selectedRegion?.name ?? null}
-          stats={legendStats}
-          activeParty={activeParty}
-          tappedParty={tappedParty}
-          onHover={setHoveredParty}
-          onTap={handlePartyTap}
-          onClear={handleClear}
-        />
+        <aside className="flex max-h-[45vh] w-full shrink-0 flex-col border-t md:max-h-none md:h-full md:w-80 md:border-l md:border-t-0">
+          <PartyLegend
+            parties={legendParties}
+            title={legendTitle}
+            stats={legendStats}
+            activeParty={isHoverPreview ? null : activeParty}
+            tappedParty={isHoverPreview ? null : tappedParty}
+            interactive={!isHoverPreview}
+            canClear={selectedRegion != null || selectedIsoCountry != null}
+            onHover={setHoveredParty}
+            onTap={handlePartyTap}
+            onClear={handleClear}
+          />
+        </aside>
       )}
-
-      {/* Map */}
-      <MapComponent
-        center={BULGARIA_CENTER}
-        zoom={BULGARIA_ZOOM}
-        className="h-full w-full"
-        loading={loading}
-        styles={{ light: BLANK_STYLE as any, dark: BLANK_STYLE as any }}
-      >
-        {regions.length > 0 && (
-          <>
-            <TileDensityLayer
-              regions={regions}
-              showNonVoters={showNonVoters}
-              geoLevel={geoLevel}
-              activeParty={activeParty}
-              selectedRegionId={selectedRegion?.id ?? null}
-              onRegionClick={handleRegionClick}
-            />
-            <MapControls />
-          </>
-        )}
-      </MapComponent>
     </div>
   );
 }

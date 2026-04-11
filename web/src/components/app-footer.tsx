@@ -30,43 +30,42 @@ export default function AppFooter() {
   const reportUrl = `${REPORT_FORM_URL}?entry.1736983913=${encodeURIComponent(currentUrl)}`;
 
   return (
-    <footer className="shrink-0 border-t border-border bg-background px-3 py-1.5 md:px-4">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground">
-        <span className="font-display text-xs font-semibold text-foreground">
-          Изборен монитор
-        </span>
-        <span className="hidden text-muted-foreground/40 md:inline">·</span>
+    <footer className="shrink-0 border-t border-border bg-background px-3 py-2 md:px-4">
+      <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-[11px] text-muted-foreground">
         <a
           href={SLACK_URL}
           target="_blank"
           rel="noopener noreferrer"
           className="transition-colors hover:text-foreground"
         >
-          Присъединете се в Slack (#izborenmonitor) →
+          Присъединете се в Slack
         </a>
-        <a
-          href={reportUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-medium text-[#ce463c] transition-colors hover:underline"
-        >
-          Докладвай разминаване →
-        </a>
+        <span className="text-muted-foreground/40">·</span>
         <a
           href={GRAO_URL}
           target="_blank"
           rel="noopener noreferrer"
           className="transition-colors hover:text-foreground"
         >
-          Проверете секцията си (ГРАО) →
+          Проверете секцията си (ГРАО)
         </a>
+        <span className="text-muted-foreground/40">·</span>
         <a
           href={GITHUB_URL}
           target="_blank"
           rel="noopener noreferrer"
           className="transition-colors hover:text-foreground"
         >
-          Отворен код →
+          Отворен код
+        </a>
+        <span className="text-muted-foreground/40">·</span>
+        <a
+          href={reportUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-[#ce463c] transition-colors hover:underline"
+        >
+          Докладвай проблем →
         </a>
       </div>
     </footer>
