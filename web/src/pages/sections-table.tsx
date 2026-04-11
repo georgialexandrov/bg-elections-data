@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useParams, useSearchParams } from "react-router";
 import Sidebar from "@/components/sidebar.js";
-import { RiskSidebarContent } from "./anomaly-map.js";
+import { AnomalySidebarContent } from "./anomaly-map/sidebar/index.js";
 import type { AnomalyMethodology, AnomalySection } from "@/lib/api/types.js";
 import { useAnomalies } from "@/lib/hooks/use-anomalies.js";
 import { useDistricts, useMunicipalities } from "@/lib/hooks/use-geography.js";
@@ -439,7 +439,7 @@ export default function SectionsTable() {
         title={selectedSection?.section_code}
       >
         {selectedSection && electionId && (
-          <RiskSidebarContent section={selectedSection} electionId={electionId} />
+          <AnomalySidebarContent section={selectedSection} electionId={electionId} />
         )}
       </Sidebar>
     </div>

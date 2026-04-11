@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { trackPageView } from "./lib/analytics.js";
 import Layout from "./components/layout.js";
 import DistrictPieMap from "./pages/district-pie-map.js";
-import AnomalyMap from "./pages/anomaly-map.js";
+import AnomalyMap from "./pages/anomaly-map/index.js";
 import SectionsTable from "./pages/sections-table.js";
 import Persistence from "./pages/persistence.js";
 import SectionDetail from "./pages/section-detail.js";

@@ -1,0 +1,211 @@
+import { useState } from "react";
+import type { AnomalyMethodology, GeoEntity } from "@/lib/api/types.js";
+
+/**
+ * Floating filter box (top-left). Owns its own "expanded on mobile" toggle
+ * but every other piece of state is mirrored to the URL via the parent's
+ * setters — keep it that way so refreshing the page restores the view.
+ *
+ * The methodology pills only show when the score threshold is non-zero
+ * (i.e. an overlay is actually being drawn).
+ */
+
+interface FilterPanelProps {
+  // values
+  district: string;
+  municipality: string;
+  sectionFilter: string;
+  minRisk: number;
+  methodology: AnomalyMethodology;
+  showBaseSections: boolean;
+
+  // setters
+  setDistrict: (id: string) => void;
+  setMunicipality: (id: string) => void;
+  setSectionFilter: (q: string) => void;
+  setMinRisk: (v: number) => void;
+  setMethodology: (m: AnomalyMethodology) => void;
+  setShowBaseSections: (v: boolean) => void;
+
+  // lookups
+  districts: GeoEntity[];
+  municipalities: GeoEntity[];
+
+  // derived counters for the bottom status line
+  baseLoading: boolean;
+  riskLoading: boolean;
+  riskActive: boolean;
+  baseCount: number;
+  filteredBaseCount: number;
+  riskCountWithCoords: number;
+}
+
+const METHODOLOGIES: { key: AnomalyMethodology; label: string }[] = [
+  { key: "combined", label: "Комбиниран" },
+  { key: "benford", label: "Benford" },
+  { key: "peer", label: "Peer" },
+  { key: "acf", label: "ACF" },
+  { key: "protocol", label: "Протокол" },
+];
+
+export function FilterPanel(props: FilterPanelProps) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="absolute top-2 left-2 z-10 flex max-w-[280px] flex-col gap-0 rounded-lg border border-border bg-background/96 shadow-lg backdrop-blur-sm md:left-3 md:top-3 md:min-w-[280px] md:max-w-[320px]">
+      {/* Mobile expand/collapse header */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center justify-between p-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground md:hidden"
+      >
+        <span>Филтри</span>
+        <span className="text-[10px]">{expanded ? "▲" : "▼"}</span>
+      </button>
+
+      {/* Section 1: Location */}
+      <div
+        className={`flex-col gap-2.5 p-3.5 pb-3 ${expanded ? "flex" : "hidden md:flex"}`}
+      >
+        <div className="hidden text-[11px] font-semibold uppercase tracking-wide text-muted-foreground md:block">
+          Местоположение
+        </div>
+
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <div className="mb-0.5 text-[11px] text-muted-foreground">Област</div>
+            <select
+              value={props.district}
+              onChange={(e) => props.setDistrict(e.target.value)}
+              className="w-full rounded-md border border-border bg-background px-1.5 py-1 text-xs"
+            >
+              <option value="">Всички</option>
+              {props.districts.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1">
+            <div className="mb-0.5 text-[11px] text-muted-foreground">Община</div>
+            <select
+              value={props.municipality}
+              onChange={(e) => props.setMunicipality(e.target.value)}
+              disabled={!props.district}
+              className="w-full rounded-md border border-border bg-background px-1.5 py-1 text-xs disabled:opacity-50"
+            >
+              <option value="">Всички</option>
+              {props.municipalities.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-0.5 text-[11px] text-muted-foreground">Секция №</div>
+          <input
+            type="text"
+            value={props.sectionFilter}
+            onChange={(e) => props.setSectionFilter(e.target.value)}
+            placeholder="напр. 234600001"
+            className="w-full rounded-md border border-border bg-background px-2 py-1 text-xs placeholder:text-muted-foreground/50"
+          />
+        </div>
+      </div>
+
+      <div
+        className={`border-t border-border ${expanded ? "" : "hidden md:block"}`}
+      />
+
+      {/* Section 2: Anomaly score filter */}
+      <div
+        className={`flex-col gap-2.5 p-3.5 pt-3 ${expanded ? "flex" : "hidden md:flex"}`}
+      >
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Рисков анализ
+        </div>
+
+        <div>
+          <div className="mb-1 text-[11px] font-medium text-muted-foreground">
+            Мин. риск:{" "}
+            <span className="font-bold text-foreground">
+              {props.minRisk.toFixed(2)}
+            </span>
+            {!props.riskActive && (
+              <span className="ml-1 text-muted-foreground/60">(изключен)</span>
+            )}
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={props.minRisk}
+            onChange={(e) => props.setMinRisk(parseFloat(e.target.value))}
+            className="w-full accent-red-500"
+          />
+        </div>
+
+        {props.riskActive && (
+          <div>
+            <div className="mb-1 text-[11px] font-medium text-muted-foreground">
+              Методология
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {METHODOLOGIES.map((m) => (
+                <button
+                  key={m.key}
+                  onClick={() => props.setMethodology(m.key)}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                    props.methodology === m.key
+                      ? "bg-foreground text-background"
+                      : "bg-secondary text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={props.showBaseSections}
+            onChange={(e) => props.setShowBaseSections(e.target.checked)}
+            className="accent-foreground"
+          />
+          Покажи всички секции
+        </label>
+
+        {/* Status line */}
+        <div className="rounded-md bg-secondary px-2.5 py-1.5 text-center text-xs text-muted-foreground">
+          {props.baseLoading || props.riskLoading ? (
+            "Зареждане..."
+          ) : props.riskActive ? (
+            <>
+              <b>{props.riskCountWithCoords}</b> рискови
+              {props.showBaseSections && (
+                <>
+                  {" "}от <b>{props.filteredBaseCount.toLocaleString()}</b>
+                </>
+              )}{" "}
+              секции
+            </>
+          ) : props.sectionFilter ? (
+            <>
+              <b>{props.filteredBaseCount.toLocaleString()}</b> от{" "}
+              {props.baseCount.toLocaleString()} секции
+            </>
+          ) : (
+            <>{props.baseCount.toLocaleString()} секции</>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
