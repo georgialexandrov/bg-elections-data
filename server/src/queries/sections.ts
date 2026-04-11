@@ -2,7 +2,10 @@ import type { Database as DatabaseType } from "better-sqlite3";
 import {
   BALLOT_JOIN_SQL,
   BALLOT_NAME_SQL,
+  MAYOR_BALLOT_NAME_SQL,
+  MAYOR_CANDIDATE_JOIN_SQL,
   getSectionBallot,
+  isMayorCandidateType,
 } from "../db/ballot.js";
 
 /**
@@ -81,7 +84,7 @@ export function getSectionDetail(
 
   if (!protocol) return null;
 
-  const ballotRows = getSectionBallot(db, electionId, sectionCode);
+  const ballotRows = getSectionBallot(db, electionId, sectionCode, electionType);
   const partyRows = ballotRows.map((r) => ({
     name: r.party_name,
     short_name: r.party_short_name,
@@ -238,6 +241,13 @@ export function getSectionsGeo(
     ? [electionId, geoFilter.value]
     : [electionId];
 
+  const electionType = (
+    db
+      .prepare("SELECT type FROM elections WHERE id = ?")
+      .get(electionId) as { type: string } | undefined
+  )?.type;
+  const useCandidate = isMayorCandidateType(electionType);
+
   const sectionRows = db
     .prepare(
       `SELECT s.section_code, l.settlement_name,
@@ -262,17 +272,21 @@ export function getSectionsGeo(
     section_type: string;
   }[];
 
+  const nameSql = useCandidate ? MAYOR_BALLOT_NAME_SQL : BALLOT_NAME_SQL;
+  const candidateJoin = useCandidate ? MAYOR_CANDIDATE_JOIN_SQL : "";
+
   const partyRows = db
     .prepare(
       `SELECT section_code, party_name, color, votes, pct FROM (
-         SELECT v.section_code, ${BALLOT_NAME_SQL} AS party_name, p.color,
+         SELECT v.section_code, ${nameSql} AS party_name, p.color,
                 v.total AS votes,
                 ROUND(v.total * 100.0 / NULLIF(SUM(v.total) OVER (PARTITION BY v.section_code), 0), 1) AS pct,
                 ROW_NUMBER() OVER (PARTITION BY v.section_code ORDER BY v.total DESC) AS rn
            FROM votes v
-           ${BALLOT_JOIN_SQL}
            JOIN sections s ON s.election_id = v.election_id AND s.section_code = v.section_code
            JOIN locations l ON l.id = s.location_id
+           ${BALLOT_JOIN_SQL}
+           ${candidateJoin}
           WHERE v.election_id = ?${filterClause}
        ) ranked WHERE rn <= 5`,
     )
