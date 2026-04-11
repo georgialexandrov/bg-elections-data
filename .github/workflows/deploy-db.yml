@@ -49,14 +49,17 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script_stop: true
           script: |
+            set -e
             cd /opt/elections
             echo "Downloading elections.db from ${{ steps.release.outputs.tag }}..."
             curl -L -o elections.db.new "${{ steps.release.outputs.download_url }}"
-            sudo systemctl stop elections-api
+            # The sudoers entry on this box only allows `systemctl restart`,
+            # not `stop`/`start` — so we put the new file in place atomically
+            # and then restart, instead of stop → swap → start.
             rm -f elections.db elections.db-wal elections.db-shm
             mv elections.db.new elections.db
             sqlite3 elections.db "PRAGMA journal_mode=WAL;"
-            sudo systemctl start elections-api
+            sudo systemctl restart elections-api
             # Purge nginx proxy_cache — the old responses no longer match the new DB.
             sudo rm -rf /var/cache/nginx/elections/*
             sudo systemctl reload nginx
