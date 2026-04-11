@@ -21,6 +21,15 @@ Matching strategy:
   2. Exact match on normalized name → same party
   3. Manual overrides from party_overrides.json for tricky cases
 
+After the main dedup pass, two finalize steps run in the same transaction:
+
+  - finalize_president_ballots(): rewrites president-round parties so the
+    visible ballot label is the candidate pair, not CIK's merged committee
+    name. Source: cik_candidates_*.txt.
+  - synthesize_orphan_ballots(): creates synthetic parties + election_parties
+    rows for ballot numbers that have votes but no entry in CIK's published
+    parties index (independents + ghost ballots).
+
 votes.party_number is the ballot number — unchanged, joins through election_parties.
 """
 
@@ -30,14 +39,34 @@ import re
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(os.environ.get("ELECTIONS_DB", Path(__file__).parent.parent / "elections.db"))
-OVERRIDES_PATH = Path(__file__).parent / "party_overrides.json"
+DATA_DIR = Path(__file__).parent
+REPO_ROOT = DATA_DIR.parent
+DB_PATH = Path(os.environ.get("ELECTIONS_DB", REPO_ROOT / "elections.db"))
+OVERRIDES_PATH = DATA_DIR / "party_overrides.json"
 # party-metadata.json with namesBG variants, colors, wiki URLs
 # Check both local data/ dir and parent results/ dir
-METADATA_PATH = Path(__file__).parent / "party-metadata.json"
+METADATA_PATH = DATA_DIR / "party-metadata.json"
 if not METADATA_PATH.exists():
-    METADATA_PATH = Path(__file__).parent.parent / "results" / "party-metadata.json"
-COALITION_MEMBERS_PATH = Path(__file__).parent / "coalition_members.json"
+    METADATA_PATH = REPO_ROOT / "results" / "party-metadata.json"
+COALITION_MEMBERS_PATH = DATA_DIR / "coalition_members.json"
+CIK_REFERENCE_PATH = DATA_DIR / "cik_reference.json"
+CIK_EXPORTS_DIR = DATA_DIR / "cik-exports"
+
+# Source files for the president ballot finalize step (per round).
+PRESIDENT_CANDIDATE_FILES: list[tuple[str, Path]] = [
+    ("pvrns2021_pvr_r1", CIK_EXPORTS_DIR / "pvrns2021_tur1/pvr/cik_candidates_14.11.2021.txt"),
+    ("pvrns2021_pvr_r2", CIK_EXPORTS_DIR / "pvrns2021_tur2/cik_candidates_21.11.2021.txt"),
+]
+
+# Candidate committee colors — when a candidate is backed by a major party but
+# runs via an initiative committee, borrow the party's color so the map/legend
+# matches voter intuition. Keyed by the clean committee name in cik_candidates.
+PRESIDENT_CANDIDATE_COLORS: dict[str, str] = {
+    "ИК за Румен Радев и Илияна Йотова":        "#D61920",  # BSP red
+    "ИК за Анастас Герджиков и Невяна Митева":  "#0054A6",  # GERB blue
+}
+
+ORPHAN_PLACEHOLDER_COLOR = "#999999"
 
 # Fallback colors from Wikipedia Module:Political_party
 # Applied when party-metadata.json doesn't have a color for the canonical name
@@ -170,6 +199,214 @@ def load_metadata() -> tuple[dict[str, str], dict[str, dict]]:
 
     print(f"  Loaded {count} parties from party-metadata.json ({len(name_to_canonical)} name variants)")
     return name_to_canonical, party_meta
+
+
+def parse_president_candidates(path: Path) -> list[tuple[int, str, str]]:
+    """Read a CIK cik_candidates file. Returns [(ballot, committee_name, candidate_pair), ...]."""
+    out: list[tuple[int, str, str]] = []
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        parts = line.split(";")
+        if len(parts) < 4:
+            continue
+        try:
+            ballot = int(parts[0])
+        except ValueError:
+            continue
+        committee = parts[1].strip()
+        candidate = parts[3].strip()
+        if committee:
+            out.append((ballot, committee, candidate))
+    return out
+
+
+def finalize_president_ballots(cur: sqlite3.Cursor) -> None:
+    """
+    Rewrite president-round parties so the visible ballot label is the
+    candidate pair, not CIK's merged committee-name string.
+
+    CIK's `cik_parties_*.txt` for the 2021 presidential rounds contains
+    merged "committee-candidate" strings (e.g.
+    `ИК за Румен Радев и Илияна Йотова-Румен Георгиев Радев и Илияна Малинова Йотова`).
+    The per-ballot `cik_candidates_*.txt` file has the clean breakdown:
+        ballot_number;committee_or_party_name;list_position;candidate_names
+
+    For president elections the candidate pair is what voters see on the
+    ballot, so we store it in `election_parties.name_on_ballot`. The party
+    affiliation is still available via `parties.canonical_name` for any
+    party that is exclusive to the president rounds.
+    """
+    for slug, candidates_path in PRESIDENT_CANDIDATE_FILES:
+        row = cur.execute("SELECT id FROM elections WHERE slug = ?", (slug,)).fetchone()
+        if not row:
+            print(f"  finalize_president_ballots: SKIP {slug} (not in DB)")
+            continue
+        election_id = row[0]
+
+        if not candidates_path.exists():
+            print(f"  finalize_president_ballots: SKIP {slug} (no source file at {candidates_path})")
+            continue
+
+        records = parse_president_candidates(candidates_path)
+        updated_parties = 0
+        updated_ep = 0
+        for ballot, committee, candidate in records:
+            ep_row = cur.execute(
+                "SELECT party_id FROM election_parties WHERE election_id = ? AND ballot_number = ?",
+                (election_id, ballot),
+            ).fetchone()
+            if not ep_row:
+                continue
+            party_id = ep_row[0]
+
+            # Only rewrite the canonical_name if this party_id is exclusive to
+            # the president rounds. Shared parties (e.g. parliamentary parties
+            # also nominating a president) keep the canonical name from the
+            # main dedup pass.
+            is_exclusive = cur.execute(
+                "SELECT NOT EXISTS ("
+                "  SELECT 1 FROM election_parties "
+                "  WHERE party_id = ? AND election_id NOT IN ("
+                "    SELECT id FROM elections WHERE slug LIKE 'pvrns2021_pvr%'"
+                "  )"
+                ")",
+                (party_id,),
+            ).fetchone()[0]
+
+            if is_exclusive:
+                color = PRESIDENT_CANDIDATE_COLORS.get(committee)
+                if color is not None:
+                    cur.execute(
+                        "UPDATE parties SET canonical_name = ?, short_name = ?, color = ? WHERE id = ?",
+                        (committee, short_name(committee), color, party_id),
+                    )
+                else:
+                    cur.execute(
+                        "UPDATE parties SET canonical_name = ?, short_name = ? WHERE id = ?",
+                        (committee, short_name(committee), party_id),
+                    )
+                updated_parties += cur.rowcount
+
+            cur.execute(
+                "UPDATE election_parties SET name_on_ballot = ? "
+                "WHERE election_id = ? AND ballot_number = ?",
+                (candidate, election_id, ballot),
+            )
+            updated_ep += cur.rowcount
+
+            # Keep candidates table in sync. The original parser put the
+            # ballot number in rik_code with a NULL party_number for
+            # president rounds — undo that here.
+            cur.execute(
+                "UPDATE candidates SET party_number = ?, name = ?, rik_code = NULL "
+                "WHERE election_id = ? AND (party_number = ? OR rik_code = ?)",
+                (ballot, candidate, election_id, ballot, str(ballot)),
+            )
+
+        print(
+            f"  finalize_president_ballots: {slug} → "
+            f"parties={updated_parties}, election_parties={updated_ep}"
+        )
+
+
+def load_cik_reference_names() -> dict[tuple[str, int], str]:
+    """Return {(slug, ballot): name} for every named CIK party."""
+    if not CIK_REFERENCE_PATH.exists():
+        return {}
+    with open(CIK_REFERENCE_PATH) as f:
+        ref = json.load(f)
+    out: dict[tuple[str, int], str] = {}
+    for slug, data in ref.items():
+        if slug.startswith("_"):
+            continue
+        for ballot_str, party in data.get("parties", {}).items():
+            try:
+                ballot = int(ballot_str)
+            except (TypeError, ValueError):
+                continue
+            name = (party.get("name") or "").strip()
+            if name:
+                out[(slug, ballot)] = name
+    return out
+
+
+def synthesize_orphan_ballots(cur: sqlite3.Cursor) -> None:
+    """
+    Create synthetic parties + election_parties rows for ballot numbers that
+    have votes recorded but no entry in normalize_parties' output.
+
+    These come from CIK's raw vote files where a ballot appears in section
+    results but never makes it to the published `cik_parties` index — they're
+    independents or "ghost" entries CIK uses internally without naming.
+
+    Without this, the API joins (votes → election_parties → parties) drop
+    those rows silently, hiding 100s–1000s of votes per election from the
+    results page.
+
+    Behavior:
+      - Use the CIK reference name when present (e.g. "+ независим")
+      - Fall back to "Независим (бюлетина N)" for ghosts and missing entries
+      - One synthetic party per (election, ballot) pair so they don't merge
+      - Color: neutral grey
+      - Idempotent (orphans are detected by NOT EXISTS join)
+    """
+    ref_names = load_cik_reference_names()
+
+    orphans = cur.execute(
+        """
+        SELECT v.election_id, e.slug, v.party_number, SUM(v.total) AS total
+        FROM votes v
+        JOIN elections e ON e.id = v.election_id
+        WHERE NOT EXISTS (
+            SELECT 1 FROM election_parties ep
+            WHERE ep.election_id = v.election_id
+              AND ep.ballot_number = v.party_number
+        )
+        GROUP BY v.election_id, v.party_number
+        ORDER BY v.election_id, v.party_number
+        """
+    ).fetchall()
+
+    if not orphans:
+        print("  synthesize_orphan_ballots: none found")
+        return
+
+    next_party_id = (cur.execute("SELECT COALESCE(MAX(id), 0) FROM parties").fetchone()[0]) + 1
+    created_parties = 0
+    created_links = 0
+    skipped_empty = 0
+
+    for election_id, slug, ballot, votes in orphans:
+        ref_name = ref_names.get((slug, int(ballot)))
+        if ref_name is None:
+            display_name = f"Независим (бюлетина {ballot})"
+        elif not ref_name:
+            skipped_empty += 1
+            continue
+        else:
+            display_name = ref_name
+
+        cur.execute(
+            "INSERT INTO parties (id, canonical_name, short_name, party_type, color) "
+            "VALUES (?, ?, ?, 'independent', ?)",
+            (next_party_id, display_name, display_name, ORPHAN_PLACEHOLDER_COLOR),
+        )
+        created_parties += 1
+
+        cur.execute(
+            "INSERT INTO election_parties (election_id, ballot_number, party_id, name_on_ballot) "
+            "VALUES (?, ?, ?, ?)",
+            (election_id, ballot, next_party_id, display_name),
+        )
+        created_links += 1
+        next_party_id += 1
+
+    print(
+        f"  synthesize_orphan_ballots: created {created_parties} parties + "
+        f"{created_links} election_parties (skipped {skipped_empty} empty)"
+    )
 
 
 def main() -> None:
@@ -376,6 +613,18 @@ def main() -> None:
             print(f"  Missing references ({len(cm_missing)}):")
             for m in cm_missing:
                 print(f"    {m}")
+
+    # Step 5: Finalize president-round ballots — replace merged committee
+    # strings with the clean candidate pair from cik_candidates_*.txt.
+    print("\nFinalize president ballots:")
+    finalize_president_ballots(cur)
+    conn.commit()
+
+    # Step 6: Synthesize parties for orphan ballot numbers (independents +
+    # ghost ballots that have votes but no entry in CIK's parties index).
+    print("\nSynthesize orphan ballots:")
+    synthesize_orphan_ballots(cur)
+    conn.commit()
 
     # Show top parties by election appearances
     print(f"\nTop parties by election appearances:")

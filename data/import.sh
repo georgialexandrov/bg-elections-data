@@ -5,10 +5,10 @@
 # This is a one-time data preparation step — historic data doesn't change.
 #
 # Prerequisites:
-#   - Python 3 installed
+#   - Python 3.10+
+#   - SQLite CLI (sqlite3) 3.44+
 #   - All raw data zips present in cik-exports/ (see cik-exports/extract.sh)
-#   - pi2021/ must be present in cik-exports/ (no zip available)
-#   - voting_locations.sql (optional) — GPS coordinates for polling stations
+#   - cik-exports/pi2021/ must be pre-extracted (no zip source)
 #
 # Usage:
 #   cd data && ./import.sh
@@ -41,6 +41,7 @@ $PYTHON normalize_candidates_schema.py
 
 echo ""
 echo "=== Step 3: Normalize parties → deduplicated parties + election_parties ==="
+echo "  (includes president-ballot finalize + orphan-ballot synthesis)"
 $PYTHON normalize_parties.py
 
 echo ""
@@ -48,11 +49,11 @@ echo "=== Step 4: Normalize sections → deduplicated locations table ==="
 $PYTHON normalize_sections.py
 
 echo ""
-echo "=== Step 5: GPS locations ==="
+echo "=== Step 5: GPS locations (optional — needs voting_locations.sql) ==="
 if [ -f "voting_locations.sql" ]; then
     $PYTHON import_locations.py voting_locations.sql
 else
-    echo "  Skipped: voting_locations.sql not found — GPS coordinates will be absent"
+    echo "  Skipped: voting_locations.sql not found — coordinates come from location_cache.json (Step 4)"
 fi
 
 echo ""
@@ -60,15 +61,15 @@ echo "=== Step 6: Link locations to geography (municipality, district, rik, kmet
 $PYTHON link_geography.py
 
 echo ""
-echo "=== Step 7: GPS coordinates from voting_locations.json ==="
-$PYTHON import_gps.py
+echo "=== Step 7: Populate sections.protocol_url (CIK results links) ==="
+$PYTHON build_protocol_urls.py
 
 echo ""
-echo "=== Step 8: Section risk scores (Benford + peer vote deviation) ==="
+echo "=== Step 8: Section anomaly scores + protocol violations ==="
 $PYTHON score_sections.py
 
 echo ""
-echo "=== Step 9: Optimize schema (WITHOUT ROWID tables, VACUUM) ==="
+echo "=== Step 9: Optimize schema (WITHOUT ROWID, VACUUM, indexes) ==="
 $PYTHON migrate_schema.py
 
 echo ""

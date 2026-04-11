@@ -31,13 +31,14 @@ Produces `elections.db` at the repo root. Takes ~2 minutes.
 | 0 | `cik-exports/extract.sh` | Extracts CIK zip archives into working directories |
 | 1 | `build.py` | Runs all parsers in parallel, merges into elections.db, imports geography |
 | 2 | `normalize_candidates_schema.py` | Deduplicates candidates, creates persons table |
-| 3 | `normalize_parties.py` | Deduplicates parties across elections |
+| 3 | `normalize_parties.py` | Deduplicates parties; finalizes president ballots; synthesizes orphan ballots |
 | 4 | `normalize_sections.py` | Deduplicates polling sections into locations table |
 | 5 | `import_locations.py` | GPS coordinates from `voting_locations.sql` (optional) |
 | 6 | `link_geography.py` | Links locations to municipalities, districts, RIKs |
-| 7 | `import_gps.py` | GPS fallback from `voting_locations.json` |
-| 8 | `migrate_schema.py` | WITHOUT ROWID optimization + VACUUM |
-| 9 | `validate_cik.py` | Validates totals against CIK official results |
+| 7 | `build_protocol_urls.py` | Populates `sections.protocol_url` (CIK results links) |
+| 8 | `score_sections.py` | Anomaly scores (Benford, peer, ACF) + protocol violations |
+| 9 | `migrate_schema.py` | WITHOUT ROWID optimization + VACUUM |
+| 10 | `validate_cik.py` | Validates totals against CIK official results |
 
 ## Running Individual Steps
 
