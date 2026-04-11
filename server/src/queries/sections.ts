@@ -216,6 +216,7 @@ export function getSectionDetail(
 
 export interface SectionGeoEntry {
   section_code: string;
+  section_type: string;
   lat: number;
   lng: number;
   settlement_name: string;
@@ -242,10 +243,13 @@ export function getSectionsGeo(
       `SELECT s.section_code, l.settlement_name,
               COALESCE(s.lat, l.lat) AS lat,
               COALESCE(s.lng, l.lng) AS lng,
-              p.registered_voters, p.actual_voters
+              p.registered_voters, p.actual_voters,
+              COALESCE(ss.section_type, 'normal') AS section_type
          FROM sections s
          JOIN locations l ON l.id = s.location_id
          JOIN protocols p ON p.election_id = s.election_id AND p.section_code = s.section_code
+         LEFT JOIN section_scores ss
+           ON ss.election_id = s.election_id AND ss.section_code = s.section_code
         WHERE s.election_id = ?${filterClause}`,
     )
     .all(...sectionParams) as {
@@ -255,6 +259,7 @@ export function getSectionsGeo(
     lng: number | null;
     registered_voters: number;
     actual_voters: number;
+    section_type: string;
   }[];
 
   const partyRows = db
@@ -304,6 +309,7 @@ export function getSectionsGeo(
       const winner = parties[0] ?? null;
       return {
         section_code: s.section_code,
+        section_type: s.section_type,
         lat: s.lat as number,
         lng: s.lng as number,
         settlement_name: s.settlement_name,

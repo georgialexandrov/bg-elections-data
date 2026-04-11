@@ -72,6 +72,7 @@ export type AnomalyMethodology =
 
 export interface SectionGeo {
   section_code: string;
+  section_type: string;
   lat: number;
   lng: number;
   settlement_name: string;

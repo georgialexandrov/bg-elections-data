@@ -2,30 +2,33 @@ import { useEffect, useRef } from "react";
 import type MapLibreGL from "maplibre-gl";
 import { useMap } from "@/components/ui/map";
 import type { AnomalyMethodology, AnomalySection } from "@/lib/api/types.js";
-import { buildCircleFeatures, ensureTriangleIcon } from "./utils.js";
+import { buildCircleFeatures, ensureWarningIcon } from "./utils.js";
 import {
   CIRCLE_HOVER_LAYER,
   CIRCLE_LAYER,
   CIRCLE_SOURCE,
-  TRIANGLE_ICON,
+  WARNING_ICON,
 } from "./constants.js";
 
 /**
- * The triangle markers that highlight flagged sections on top of the base
- * winner-coloured layer. Marker size and colour both interpolate against the
- * `risk` property baked into each feature, so a designer can re-tune the
- * scale by editing the two paint expressions in this file.
+ * Anomaly markers: rounded square filled with the winner party's colour,
+ * plus a white "!" glyph rendered on top by MapLibre's text engine. The
+ * square is an SDF icon so `icon-color` can pick up the party colour per
+ * feature; the exclamation lives on the same symbol layer via `text-field`
+ * so both travel together.
  *
- * Two layers share one source: a normal layer and a hidden hover layer
- * filtered to one section_code at a time, so hovering enlarges the marker
- * without re-rendering the source.
+ * Two layers share one source: a base layer and a hidden hover layer
+ * filtered to one section_code at a time, so hovering a marker enlarges
+ * it without re-rendering the source.
  */
 export function AnomalyCirclesLayer({
   sections,
   methodology,
+  colorByCode,
 }: {
   sections: AnomalySection[];
   methodology: AnomalyMethodology;
+  colorByCode: Map<string, string>;
 }) {
   const { map, isLoaded } = useMap();
   const hoveredIdRef = useRef<string | null>(null);
@@ -33,8 +36,8 @@ export function AnomalyCirclesLayer({
   useEffect(() => {
     if (!map || !isLoaded || sections.length === 0) return;
 
-    ensureTriangleIcon(map);
-    const fc = buildCircleFeatures(sections, methodology);
+    ensureWarningIcon(map);
+    const fc = buildCircleFeatures(sections, methodology, colorByCode);
 
     const existing = map.getSource(CIRCLE_SOURCE);
     if (existing) {
@@ -49,26 +52,52 @@ export function AnomalyCirclesLayer({
         type: "symbol",
         source: CIRCLE_SOURCE,
         layout: {
-          "icon-image": TRIANGLE_ICON,
+          "icon-image": WARNING_ICON,
           "icon-size": [
-            "interpolate", ["linear"], ["get", "risk"],
-            0.3, 0.35,
-            0.5, 0.55,
-            0.7, 0.75,
-            1.0, 1.0,
+            "interpolate", ["linear"], ["zoom"],
+            6, 0.08,
+            9, 0.12,
+            12, 0.2,
+            15, 0.3,
           ],
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
+          "text-field": "!",
+          "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+          "text-size": [
+            "interpolate", ["linear"], ["zoom"],
+            9, 9,
+            12, 14,
+            15, 20,
+          ],
+          "text-anchor": "center",
+          "text-allow-overlap": true,
+          "text-ignore-placement": true,
         },
         paint: {
-          "icon-color": [
-            "interpolate", ["linear"], ["get", "risk"],
-            0.3, "#facc15",  // yellow
-            0.5, "#f97316",  // orange
-            0.7, "#ef4444",  // red
-            1.0, "#991b1b",  // dark red
+          "icon-color": ["get", "winner_color"],
+          "icon-halo-color": "rgba(255,255,255,0.75)",
+          "icon-halo-width": [
+            "interpolate", ["linear"], ["zoom"],
+            6, 0.4,
+            9, 0.6,
+            12, 0.85,
+            15, 1.0,
           ],
-          "icon-opacity": 0.9,
+          "icon-opacity": [
+            "interpolate", ["linear"], ["zoom"],
+            6, 0.85,
+            9, 0.95,
+            12, 1.0,
+          ],
+          "text-color": "#ffffff",
+          "text-halo-color": "rgba(0,0,0,0.7)",
+          "text-halo-width": 1,
+          "text-opacity": [
+            "interpolate", ["linear"], ["zoom"],
+            9, 0,
+            10, 1,
+          ],
         },
       });
     }
@@ -81,26 +110,47 @@ export function AnomalyCirclesLayer({
         type: "symbol",
         source: CIRCLE_SOURCE,
         layout: {
-          "icon-image": TRIANGLE_ICON,
+          "icon-image": WARNING_ICON,
           "icon-size": [
-            "interpolate", ["linear"], ["get", "risk"],
-            0.3, 0.5,
-            0.5, 0.7,
-            0.7, 0.9,
-            1.0, 1.3,
+            "interpolate", ["linear"], ["zoom"],
+            6, 0.12,
+            9, 0.16,
+            12, 0.26,
+            15, 0.38,
           ],
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
+          "text-field": "!",
+          "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+          "text-size": [
+            "interpolate", ["linear"], ["zoom"],
+            9, 11,
+            12, 17,
+            15, 24,
+          ],
+          "text-anchor": "center",
+          "text-allow-overlap": true,
+          "text-ignore-placement": true,
         },
         paint: {
-          "icon-color": [
-            "interpolate", ["linear"], ["get", "risk"],
-            0.3, "#facc15",
-            0.5, "#f97316",
-            0.7, "#ef4444",
-            1.0, "#991b1b",
+          "icon-color": ["get", "winner_color"],
+          "icon-halo-color": "rgba(255,255,255,0.95)",
+          "icon-halo-width": [
+            "interpolate", ["linear"], ["zoom"],
+            6, 0.55,
+            9, 0.8,
+            12, 1.1,
+            15, 1.3,
           ],
           "icon-opacity": 1.0,
+          "text-color": "#ffffff",
+          "text-halo-color": "rgba(0,0,0,0.8)",
+          "text-halo-width": 1.25,
+          "text-opacity": [
+            "interpolate", ["linear"], ["zoom"],
+            9, 0,
+            10, 1,
+          ],
         },
         filter: ["==", "section_code", ""],
       });
@@ -115,7 +165,7 @@ export function AnomalyCirclesLayer({
         /* map already destroyed */
       }
     };
-  }, [map, isLoaded, sections, methodology]);
+  }, [map, isLoaded, sections, methodology, colorByCode]);
 
   // Hover + cursor handler
   useEffect(() => {

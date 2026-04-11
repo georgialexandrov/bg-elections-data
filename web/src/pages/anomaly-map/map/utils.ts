@@ -3,8 +3,8 @@ import type { AnomalySection, AnomalyMethodology } from "@/lib/api/types.js";
 import {
   GOLDEN_ANGLE,
   OFFSET_RADIUS,
-  TRIANGLE_ICON,
-  TRIANGLE_SIZE,
+  WARNING_ICON,
+  WARNING_ICON_SIZE,
 } from "./constants.js";
 
 /**
@@ -18,8 +18,8 @@ import {
  *   violation count > 0 → 1, otherwise 0.
  * - `buildCircleFeatures`: turns a section list into a `FeatureCollection`
  *   ready to drop into a MapLibre source.
- * - `ensureTriangleIcon`: lazily registers the white triangle SDF icon used
- *   by the anomaly markers.
+ * - `ensureWarningIcon`: lazily registers the white rounded-square SDF
+ *   icon the anomaly markers are coloured with.
  */
 
 export function offsetOverlappingSections<
@@ -76,6 +76,7 @@ export function getRiskValue(
 export function buildCircleFeatures(
   sections: AnomalySection[],
   methodology: AnomalyMethodology,
+  colorByCode: Map<string, string>,
 ) {
   const spread = offsetOverlappingSections(
     sections.filter((s) => s.lat != null && s.lng != null),
@@ -90,6 +91,7 @@ export function buildCircleFeatures(
         settlement_name: s.settlement_name,
         address: s.address ?? "",
         risk: getRiskValue(s, methodology),
+        winner_color: colorByCode.get(s.section_code) ?? "#888",
         risk_score: s.risk_score ?? 0,
         benford_risk: s.benford_risk ?? 0,
         peer_risk: s.peer_risk ?? 0,
@@ -103,22 +105,29 @@ export function buildCircleFeatures(
   };
 }
 
-export function ensureTriangleIcon(map: MapLibreGL.Map) {
-  if (map.hasImage(TRIANGLE_ICON)) return;
-  const size = TRIANGLE_SIZE;
+export function ensureWarningIcon(map: MapLibreGL.Map) {
+  if (map.hasImage(WARNING_ICON)) return;
+  const size = WARNING_ICON_SIZE;
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d")!;
-  // Upward-pointing triangle (warning sign shape)
-  const pad = 4;
+  // Rounded square. Fill the full canvas so the symbol-layer icon-size
+  // math stays predictable — consumers want "icon-size × canvas = pixels".
+  const radius = size / 5;
+  const x = 0;
+  const y = 0;
+  const w = size;
+  const h = size;
   ctx.fillStyle = "#fff";
   ctx.beginPath();
-  ctx.moveTo(size / 2, pad);
-  ctx.lineTo(size - pad, size - pad);
-  ctx.lineTo(pad, size - pad);
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + w, y, x + w, y + h, radius);
+  ctx.arcTo(x + w, y + h, x, y + h, radius);
+  ctx.arcTo(x, y + h, x, y, radius);
+  ctx.arcTo(x, y, x + w, y, radius);
   ctx.closePath();
   ctx.fill();
   const imageData = ctx.getImageData(0, 0, size, size);
-  map.addImage(TRIANGLE_ICON, imageData, { sdf: true });
+  map.addImage(WARNING_ICON, imageData, { sdf: true });
 }

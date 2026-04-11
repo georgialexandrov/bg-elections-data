@@ -23,9 +23,17 @@ export const CIRCLE_HOVER_LAYER = "risk-circles-hover";
 export const MUNI_BORDER_LAYER = "municipality-borders";
 export const SELECTED_LAYER = "selected-section-ring";
 
-// Triangle warning icon used by the anomaly markers
-export const TRIANGLE_ICON = "risk-triangle";
-export const TRIANGLE_SIZE = 48;
+// Rounded-square warning icon used by the anomaly markers. We rasterize at
+// a larger canvas than we ever display at so the SDF edges stay crisp when
+// scaled down at low zoom. The "!" is rendered as a separate text glyph by
+// MapLibre, not baked into this shape (SDF is single-colour).
+export const WARNING_ICON = "anomaly-warning-square";
+export const WARNING_ICON_SIZE = 96;
+
+// Default threshold for what counts as "flagged" in the anomaly layer.
+// The score columns are normalized to [0, 1]; 0.5 matches the old "medium"
+// legend band. Protocol methodology ignores this and uses violation counts.
+export const ANOMALY_MIN_RISK = 0.5;
 
 // Sunflower-spiral overlap fix — keeps stacked sections from rendering on
 // top of each other at the same coordinate.

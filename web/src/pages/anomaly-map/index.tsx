@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { trackEvent } from "@/lib/analytics.js";
 import { Map } from "@/components/ui/map";
@@ -9,25 +9,38 @@ import { useDistricts, useMunicipalities } from "@/lib/hooks/use-geography.js";
 import { useSectionsGeo } from "@/lib/hooks/use-sections.js";
 import { SectionView } from "@/components/section/index.js";
 
-import { BULGARIA_CENTER, BULGARIA_ZOOM } from "./map/constants.js";
+import {
+  ANOMALY_MIN_RISK,
+  BULGARIA_CENTER,
+  BULGARIA_ZOOM,
+} from "./map/constants.js";
 import { AllSectionsLayer } from "./map/all-sections-layer.js";
 import { AnomalyCirclesLayer } from "./map/anomaly-circles-layer.js";
+import { FitToFilter } from "./map/fit-to-filter.js";
 import { MunicipalityOutlines } from "./map/municipality-outlines.js";
 import { SectionClickHandler } from "./map/section-click-handler.js";
 import { SelectedSectionRing } from "./map/selected-section-ring.js";
 
-import { FilterPanel } from "./filter-panel.js";
-import { AnomalyLegend } from "./anomaly-legend.js";
+import { FilterPanel, type SectionTypeKey } from "./filter-panel.js";
+
+const ALL_SECTION_TYPES: SectionTypeKey[] = [
+  "normal",
+  "hospital",
+  "prison",
+  "mobile",
+  "abroad",
+];
+const DEFAULT_SECTION_TYPES = new Set<SectionTypeKey>(ALL_SECTION_TYPES);
 
 /**
  * The anomaly map page — section-level results overlaid with statistical
- * anomaly markers, filterable by district / municipality / score / methodology.
+ * anomaly markers, filterable by district / municipality / methodology.
  *
  * This file is intentionally a thin composition root: URL state, the data
  * hooks, and the layout. The substantive UI lives in:
  *   - `map/`     — every MapLibre layer is its own file
  *   - `sidebar/` — every sidebar card is its own file under `cards/`
- *   - `filter-panel.tsx` and `anomaly-legend.tsx` — the floating UI
+ *   - `filter-panel.tsx` — the floating UI
  *
  * Add a new map layer? Drop a file under `map/` and render it inside the
  * `<Map>` block below. Add a new sidebar card? Drop a file under
@@ -40,7 +53,6 @@ export default function AnomalyMap() {
   // ----- URL state -----
 
   const methodology = (searchParams.get("m") ?? "combined") as AnomalyMethodology;
-  const minRisk = parseFloat(searchParams.get("risk") ?? "0");
   const district = searchParams.get("district") ?? "";
   const municipality = searchParams.get("municipality") ?? "";
   const sectionFilter = searchParams.get("q") ?? "";
@@ -65,7 +77,6 @@ export default function AnomalyMap() {
     });
     setParam("m", m === "combined" ? "" : m);
   };
-  const setMinRisk = (v: number) => setParam("risk", v === 0 ? "" : String(v));
   const setDistrict = (v: string) => {
     if (v) trackEvent("filter_district", { district: v, election_id: electionId });
     // Clearing district also clears municipality so the dropdowns stay coherent.
@@ -92,7 +103,21 @@ export default function AnomalyMap() {
 
   // ----- Local UI state (not URL-bound) -----
 
-  const [showBaseSections, setShowBaseSections] = useState(true);
+  const [onlyAnomalies, setOnlyAnomalies] = useState(false);
+  const [sectionTypes, setSectionTypes] = useState<Set<SectionTypeKey>>(
+    () => new Set(DEFAULT_SECTION_TYPES),
+  );
+  const toggleSectionType = useCallback((key: SectionTypeKey) => {
+    setSectionTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        if (next.size > 1) next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
 
   // ----- Data hooks -----
 
@@ -108,27 +133,45 @@ export default function AnomalyMap() {
   );
   const allSections = sectionsGeoData?.sections ?? [];
 
-  const riskActive = minRisk > 0;
-  const { data: anomaliesData, isFetching: riskLoading } = useAnomalies(
-    {
-      electionId: electionId!,
-      minRisk,
-      methodology,
-      district: district || undefined,
-      municipality: municipality || undefined,
-      sort: methodology === "protocol" ? "protocol_violation_count" : "risk_score",
-      order: "desc",
-      limit: 0,
-    },
-    riskActive,
-  );
+  const { data: anomaliesData, isFetching: riskLoading } = useAnomalies({
+    electionId: electionId!,
+    minRisk: ANOMALY_MIN_RISK,
+    methodology,
+    district: district || undefined,
+    municipality: municipality || undefined,
+    sort: methodology === "protocol" ? "protocol_violation_count" : "risk_score",
+    order: "desc",
+    limit: 0,
+  });
   const riskSections = anomaliesData?.sections ?? [];
 
   // ----- Derived state -----
 
-  const filteredAllSections = sectionFilter
-    ? allSections.filter((s) => s.section_code.includes(sectionFilter))
-    : allSections;
+  const filteredAllSections = useMemo(() => {
+    const bySection = sectionFilter
+      ? allSections.filter((s) => s.section_code.includes(sectionFilter))
+      : allSections;
+    return bySection.filter((s) =>
+      sectionTypes.has((s.section_type as SectionTypeKey) ?? "normal"),
+    );
+  }, [allSections, sectionFilter, sectionTypes]);
+
+  const filteredRiskSections = useMemo(
+    () =>
+      riskSections.filter((s) =>
+        sectionTypes.has((s.section_type as SectionTypeKey) ?? "normal"),
+      ),
+    [riskSections, sectionTypes],
+  );
+
+  // Every anomaly triangle inherits the winner's party colour from the base
+  // section layer. We build the lookup once per allSections change instead of
+  // re-walking the array inside the MapLibre source effect.
+  const colorByCode = useMemo(() => {
+    const m = new globalThis.Map<string, string>();
+    for (const s of allSections) m.set(s.section_code, s.winner_color);
+    return m;
+  }, [allSections]);
 
   // The selected section gets fetched fresh by `<SectionView>` regardless of
   // which layer it came from, but if we already have the anomaly row in the
@@ -146,6 +189,14 @@ export default function AnomalyMap() {
     setParam("section", selectedCode === code ? "" : code);
   };
 
+  // Trigger key for the fit-to-bounds effect: empty string → Bulgaria default,
+  // otherwise the current district/municipality combo.
+  const fitKey = municipality
+    ? `m:${municipality}`
+    : district
+      ? `d:${district}`
+      : "";
+
   // ----- Render -----
 
   return (
@@ -159,27 +210,26 @@ export default function AnomalyMap() {
       >
         {electionId && <MunicipalityOutlines electionId={electionId} />}
 
-        {showBaseSections && filteredAllSections.length > 0 && (
+        {!onlyAnomalies && filteredAllSections.length > 0 && (
           <AllSectionsLayer
             sections={filteredAllSections}
             onSectionClick={handleSectionClick}
-            riskCodes={
-              riskActive
-                ? new Set(riskSections.map((s) => s.section_code))
-                : undefined
-            }
+            riskCodes={new Set(filteredRiskSections.map((s) => s.section_code))}
           />
         )}
 
-        {riskActive && riskSections.length > 0 && (
+        {filteredRiskSections.length > 0 && (
           <>
             <AnomalyCirclesLayer
-              sections={riskSections}
+              sections={filteredRiskSections}
               methodology={methodology}
+              colorByCode={colorByCode}
             />
             <SectionClickHandler onSectionClick={handleSectionClick} />
           </>
         )}
+
+        <FitToFilter fitKey={fitKey} points={filteredAllSections} />
 
         <SelectedSectionRing sectionCode={selectedCode || null} />
       </Map>
@@ -188,26 +238,25 @@ export default function AnomalyMap() {
         district={district}
         municipality={municipality}
         sectionFilter={sectionFilter}
-        minRisk={minRisk}
         methodology={methodology}
-        showBaseSections={showBaseSections}
+        onlyAnomalies={onlyAnomalies}
+        sectionTypes={sectionTypes}
         setDistrict={setDistrict}
         setMunicipality={setMunicipality}
         setSectionFilter={setSectionFilter}
-        setMinRisk={setMinRisk}
         setMethodology={setMethodology}
-        setShowBaseSections={setShowBaseSections}
+        setOnlyAnomalies={setOnlyAnomalies}
+        toggleSectionType={toggleSectionType}
         districts={districts}
         municipalities={municipalities}
         baseLoading={baseLoading}
         riskLoading={riskLoading}
-        riskActive={riskActive}
         baseCount={allSections.length}
         filteredBaseCount={filteredAllSections.length}
-        riskCountWithCoords={riskSections.filter((s) => s.lat != null).length}
+        riskCountWithCoords={
+          filteredRiskSections.filter((s) => s.lat != null).length
+        }
       />
-
-      {riskActive && <AnomalyLegend />}
 
       <Sidebar
         open={!!selectedCode}

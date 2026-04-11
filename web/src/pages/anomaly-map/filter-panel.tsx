@@ -1,31 +1,35 @@
 import { useState } from "react";
 import type { AnomalyMethodology, GeoEntity } from "@/lib/api/types.js";
+import { SECTION_TYPE_LABELS } from "./map/constants.js";
 
 /**
  * Floating filter box (top-left). Owns its own "expanded on mobile" toggle
  * but every other piece of state is mirrored to the URL via the parent's
  * setters — keep it that way so refreshing the page restores the view.
  *
- * The methodology pills only show when the score threshold is non-zero
- * (i.e. an overlay is actually being drawn).
+ * The methodology buttons are the primary lens selector; there's no
+ * threshold slider because a pre-tuned default covers the cases we care
+ * about.
  */
+
+export type SectionTypeKey = "normal" | "hospital" | "prison" | "mobile" | "abroad";
 
 interface FilterPanelProps {
   // values
   district: string;
   municipality: string;
   sectionFilter: string;
-  minRisk: number;
   methodology: AnomalyMethodology;
-  showBaseSections: boolean;
+  onlyAnomalies: boolean;
+  sectionTypes: Set<SectionTypeKey>;
 
   // setters
   setDistrict: (id: string) => void;
   setMunicipality: (id: string) => void;
   setSectionFilter: (q: string) => void;
-  setMinRisk: (v: number) => void;
   setMethodology: (m: AnomalyMethodology) => void;
-  setShowBaseSections: (v: boolean) => void;
+  setOnlyAnomalies: (v: boolean) => void;
+  toggleSectionType: (key: SectionTypeKey) => void;
 
   // lookups
   districts: GeoEntity[];
@@ -34,7 +38,6 @@ interface FilterPanelProps {
   // derived counters for the bottom status line
   baseLoading: boolean;
   riskLoading: boolean;
-  riskActive: boolean;
   baseCount: number;
   filteredBaseCount: number;
   riskCountWithCoords: number;
@@ -46,6 +49,14 @@ const METHODOLOGIES: { key: AnomalyMethodology; label: string }[] = [
   { key: "peer", label: "Peer" },
   { key: "acf", label: "ACF" },
   { key: "protocol", label: "Протокол" },
+];
+
+const SECTION_TYPES: { key: SectionTypeKey; label: string }[] = [
+  { key: "normal", label: "Обикновени" },
+  { key: "hospital", label: SECTION_TYPE_LABELS.hospital },
+  { key: "prison", label: SECTION_TYPE_LABELS.prison },
+  { key: "mobile", label: SECTION_TYPE_LABELS.mobile },
+  { key: "abroad", label: SECTION_TYPE_LABELS.abroad },
 ];
 
 export function FilterPanel(props: FilterPanelProps) {
@@ -114,95 +125,87 @@ export function FilterPanel(props: FilterPanelProps) {
             className="w-full rounded-md border border-border bg-background px-2 py-1 text-xs placeholder:text-muted-foreground/50"
           />
         </div>
+
+        <div>
+          <div className="mb-1 text-[11px] text-muted-foreground">Тип секция</div>
+          <div className="flex flex-wrap gap-1">
+            {SECTION_TYPES.map((t) => {
+              const active = props.sectionTypes.has(t.key);
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => props.toggleSectionType(t.key)}
+                  className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                    active
+                      ? "bg-foreground text-background"
+                      : "bg-secondary text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       <div
         className={`border-t border-border ${expanded ? "" : "hidden md:block"}`}
       />
 
-      {/* Section 2: Anomaly score filter */}
+      {/* Section 2: Anomaly analysis */}
       <div
         className={`flex-col gap-2.5 p-3.5 pt-3 ${expanded ? "flex" : "hidden md:flex"}`}
       >
         <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Рисков анализ
+          Анализ на аномалии
         </div>
 
         <div>
           <div className="mb-1 text-[11px] font-medium text-muted-foreground">
-            Мин. риск:{" "}
-            <span className="font-bold text-foreground">
-              {props.minRisk.toFixed(2)}
-            </span>
-            {!props.riskActive && (
-              <span className="ml-1 text-muted-foreground/60">(изключен)</span>
-            )}
+            Методология
           </div>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={props.minRisk}
-            onChange={(e) => props.setMinRisk(parseFloat(e.target.value))}
-            className="w-full accent-red-500"
-          />
+          <div className="flex flex-wrap gap-1">
+            {METHODOLOGIES.map((m) => (
+              <button
+                key={m.key}
+                onClick={() => props.setMethodology(m.key)}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  props.methodology === m.key
+                    ? "bg-foreground text-background"
+                    : "bg-secondary text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
         </div>
-
-        {props.riskActive && (
-          <div>
-            <div className="mb-1 text-[11px] font-medium text-muted-foreground">
-              Методология
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {METHODOLOGIES.map((m) => (
-                <button
-                  key={m.key}
-                  onClick={() => props.setMethodology(m.key)}
-                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                    props.methodology === m.key
-                      ? "bg-foreground text-background"
-                      : "bg-secondary text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
           <input
             type="checkbox"
-            checked={props.showBaseSections}
-            onChange={(e) => props.setShowBaseSections(e.target.checked)}
+            checked={props.onlyAnomalies}
+            onChange={(e) => props.setOnlyAnomalies(e.target.checked)}
             className="accent-foreground"
           />
-          Покажи всички секции
+          Само аномалии
         </label>
 
         {/* Status line */}
         <div className="rounded-md bg-secondary px-2.5 py-1.5 text-center text-xs text-muted-foreground">
           {props.baseLoading || props.riskLoading ? (
             "Зареждане..."
-          ) : props.riskActive ? (
+          ) : (
             <>
-              <b>{props.riskCountWithCoords}</b> рискови
-              {props.showBaseSections && (
+              <b>{props.riskCountWithCoords}</b> отбелязани
+              {!props.onlyAnomalies && (
                 <>
                   {" "}от <b>{props.filteredBaseCount.toLocaleString()}</b>
                 </>
               )}{" "}
               секции
             </>
-          ) : props.sectionFilter ? (
-            <>
-              <b>{props.filteredBaseCount.toLocaleString()}</b> от{" "}
-              {props.baseCount.toLocaleString()} секции
-            </>
-          ) : (
-            <>{props.baseCount.toLocaleString()} секции</>
           )}
         </div>
       </div>

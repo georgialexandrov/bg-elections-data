@@ -12,6 +12,12 @@ import {
  *
  * If the section has no coordinates, the parent should not render this at
  * all — `<SectionLocation>` already handles the absent-coords case.
+ *
+ * The `key` on `<MapGL>` is deliberate: the shared map component only
+ * syncs its `viewport` prop in "controlled" mode (requires
+ * `onViewportChange` too). Here we just want the map to re-center when the
+ * user picks a different section in the sidebar, so we remount it on every
+ * new coordinate instead of threading a viewport callback through.
  */
 export function SectionMap({
   lat,
@@ -26,7 +32,10 @@ export function SectionMap({
     <div
       className={`h-48 overflow-hidden rounded-lg border border-border ${className ?? ""}`}
     >
-      <MapGL viewport={{ center: [lng, lat], zoom: 15, bearing: 0, pitch: 0 }}>
+      <MapGL
+        key={`${lat},${lng}`}
+        viewport={{ center: [lng, lat], zoom: 15, bearing: 0, pitch: 0 }}
+      >
         <MapMarker latitude={lat} longitude={lng}>
           <MarkerContent>
             <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-[#ce463c] shadow-lg">
