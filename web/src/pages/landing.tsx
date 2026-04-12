@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import { Globe } from "lucide-react";
 import { useElections } from "@/lib/hooks/use-elections.js";
+import AppFooter from "@/components/app-footer.js";
 import {
   useAbroadSummary,
   useDistricts,
@@ -137,6 +138,7 @@ export default function Landing() {
           </p>
         </section>
       </div>
+      <AppFooter />
     </div>
   );
 }

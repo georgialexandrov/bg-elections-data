@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { ChevronRight } from "lucide-react";
+import AppFooter from "@/components/app-footer.js";
 import {
   useAbroadBrowse,
   useDistrictBrowse,
@@ -213,6 +214,7 @@ function BrowseShell({
 
         <div className="space-y-6">{children}</div>
       </div>
+      <AppFooter />
     </div>
   );
 }

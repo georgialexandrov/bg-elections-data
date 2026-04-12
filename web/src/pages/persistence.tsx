@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import type { PersistenceSection as PersistentSection } from "@/lib/api/types.js";
 import { usePersistenceInfinite } from "@/lib/hooks/use-persistence.js";
+import AppFooter from "@/components/app-footer.js";
 import {
   ScoreBadge,
   SCORE_SOLID_CLASS,
@@ -340,6 +341,7 @@ export default function Persistence() {
             )}
           </div>
         )}
+        <AppFooter />
       </div>
 
       {/* Desktop table */}
@@ -523,6 +525,7 @@ export default function Persistence() {
             </tbody>
           </table>
         )}
+        <AppFooter />
       </div>
 
       {/* Sidebar */}

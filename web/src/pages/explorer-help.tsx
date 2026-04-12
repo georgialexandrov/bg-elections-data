@@ -1,4 +1,5 @@
 import { ExternalLink, Download, MessageSquare, Database, Sparkles, FolderOpen } from "lucide-react";
+import AppFooter from "@/components/app-footer.js";
 
 const GITHUB_URL = "https://github.com/datasciencesociety/elections";
 const GITHUB_BRANCH_URL = `${GITHUB_URL}/tree/feature/web-visualize`;
@@ -257,6 +258,7 @@ export default function ExplorerHelp() {
 
         <div className="h-8" />
       </div>
+      <AppFooter />
     </div>
   );
 }

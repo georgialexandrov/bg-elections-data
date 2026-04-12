@@ -34,7 +34,6 @@ geography.get("/districts", (c) => {
       `
     )
     .all();
-  c.header("Cache-Control", "public, max-age=3600");
   return c.json(rows);
 });
 
@@ -62,7 +61,7 @@ geography.get("/abroad-summary", (c) => {
       `
     )
     .get();
-  c.header("Cache-Control", "public, max-age=3600");
+
   return c.json(row);
 });
 
@@ -170,7 +169,7 @@ geography.get("/search-index", (c) => {
     )
     .all();
 
-  c.header("Cache-Control", "public, max-age=3600, s-maxage=3600");
+
   return c.json({ sections: rows });
 });
 
@@ -224,7 +223,7 @@ geography.get("/district/:id/browse", (c) => {
     )
     .all(...params);
 
-  c.header("Cache-Control", "public, max-age=3600");
+
   return c.json({ district, locations: rows });
 });
 
@@ -273,7 +272,7 @@ geography.get("/abroad/browse", (c) => {
     )
     .all(...params);
 
-  c.header("Cache-Control", "public, max-age=3600");
+
   return c.json({ locations: rows });
 });
 
@@ -411,7 +410,7 @@ geography.get("/settlement-peers/:code", (c) => {
   const { code } = c.req.param();
   const result = getSettlementPeers(db, code);
   if (!result) return c.json({ error: "Section not found" }, 404);
-  c.header("Cache-Control", "public, max-age=3600");
+
   return c.json(result);
 });
 

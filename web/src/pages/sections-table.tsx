@@ -17,6 +17,7 @@ import { useDistricts, useMunicipalities } from "@/lib/hooks/use-geography.js";
 import { useSectionViolations } from "@/lib/hooks/use-sections.js";
 import { ScoreBadge } from "@/components/score/index.js";
 import { SlidersHorizontal, ChevronDown, ChevronUp } from "lucide-react";
+import AppFooter from "@/components/app-footer.js";
 
 function pct2(value: number): string {
   return (Math.floor(value * 100) / 100).toFixed(2);
@@ -386,6 +387,7 @@ export default function SectionsTable() {
             </div>
           )}
         </div>
+        <AppFooter />
       </div>
 
       {/* Desktop table */}
@@ -602,6 +604,7 @@ export default function SectionsTable() {
             )}
           </tbody>
         </table>
+        <AppFooter />
       </div>
 
       {/* Sidebar */}

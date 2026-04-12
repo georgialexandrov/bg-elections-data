@@ -21,6 +21,7 @@ import {
 } from "@/components/section/index.js";
 import MethodologyExplainer from "@/components/methodology-explainer.js";
 import { ShareButton } from "@/components/ui/share-button.js";
+import AppFooter from "@/components/app-footer.js";
 
 const REPORT_FORM_URL =
   "https://docs.google.com/forms/d/e/1FAIpQLSdLB0n9twfFQyiD4mIpAX_fYc_-N5bUhfkKpVJa6_-Oxv5CAQ/viewform";
@@ -357,6 +358,7 @@ export default function SectionDetail() {
           ))}
         </div>
       </div>
+      <AppFooter />
     </div>
   );
 }

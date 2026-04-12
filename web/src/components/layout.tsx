@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { useElections } from "@/lib/hooks/use-elections.js";
 import SearchBox from "@/components/search-box.js";
-import AppFooter from "@/components/app-footer.js";
+
 
 const NAV_ITEMS = [
   { label: "Резултати", path: "results" },
@@ -164,9 +164,6 @@ export default function Layout() {
       <main className="relative flex-1 overflow-hidden">
         <Outlet />
       </main>
-
-      {/* Global footer — community + report link on every page */}
-      <AppFooter />
     </div>
   );
 }
