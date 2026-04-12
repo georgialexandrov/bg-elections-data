@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 import { ChevronRight } from "lucide-react";
 import {
   useAbroadBrowse,
@@ -25,7 +25,9 @@ import {
  */
 export function BrowseDistrict() {
   const { id } = useParams<{ id: string }>();
-  const { data, isLoading, isError } = useDistrictBrowse(id);
+  const [searchParams] = useSearchParams();
+  const electionId = searchParams.get("election") ?? undefined;
+  const { data, isLoading, isError } = useDistrictBrowse(id, electionId);
   const [filter, setFilter] = useState("");
 
   const normalized = normalize(filter);
@@ -72,8 +74,7 @@ export function BrowseDistrict() {
                 key={l.location_id}
                 primary={l.settlement_name ?? "—"}
                 secondary={l.address ?? ""}
-                sectionCount={l.section_count}
-                sectionCode={l.section_code}
+                sectionCodes={l.section_codes}
               />
             ))}
           </BrowseGroup>
@@ -83,7 +84,9 @@ export function BrowseDistrict() {
 }
 
 export function BrowseAbroad() {
-  const { data, isLoading, isError } = useAbroadBrowse();
+  const [searchParams] = useSearchParams();
+  const electionId = searchParams.get("election") ?? undefined;
+  const { data, isLoading, isError } = useAbroadBrowse(electionId);
   const [filter, setFilter] = useState("");
 
   const normalized = normalize(filter);
@@ -131,8 +134,7 @@ export function BrowseAbroad() {
                 key={l.location_id}
                 primary={l.city || l.settlement_name || "—"}
                 secondary={l.address ?? ""}
-                sectionCount={l.section_count}
-                sectionCode={l.section_code}
+                sectionCodes={l.section_codes}
               />
             ))}
           </BrowseGroup>
@@ -256,21 +258,17 @@ function BrowseGroup({
 function BrowseRow({
   primary,
   secondary,
-  sectionCount,
-  sectionCode,
+  sectionCodes,
 }: {
   primary: string;
   secondary: string;
-  sectionCount: number;
-  sectionCode: string;
+  sectionCodes: string;
 }) {
+  const codes = sectionCodes.split(",").sort();
   return (
-    <Link
-      to={`/section/${sectionCode}`}
-      className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-secondary/40"
-    >
+    <div className="flex items-center gap-3 px-4 py-3">
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium text-foreground group-hover:text-[#ce463c]">
+        <div className="truncate text-sm font-medium text-foreground">
           {primary}
         </div>
         {secondary && (
@@ -279,16 +277,18 @@ function BrowseRow({
           </div>
         )}
       </div>
-      <div className="shrink-0 text-right text-[11px] tabular-nums">
-        {sectionCount === 1 ? (
-          <span className="text-muted-foreground">1 секция</span>
-        ) : (
-          <span className="font-medium text-[#ce463c]">
-            виж {sectionCount} секции →
-          </span>
-        )}
+      <div className="flex shrink-0 flex-wrap justify-end gap-1">
+        {codes.map((code) => (
+          <Link
+            key={code}
+            to={`/section/${code}`}
+            className="rounded border border-border px-1.5 py-0.5 font-mono text-[11px] tabular-nums transition-colors hover:border-[#ce463c] hover:text-[#ce463c]"
+          >
+            {code}
+          </Link>
+        ))}
       </div>
-    </Link>
+    </div>
   );
 }
 

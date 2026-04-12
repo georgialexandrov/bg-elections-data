@@ -26,14 +26,20 @@ export function getAbroadSummary(): Promise<AbroadSummary> {
 
 export function getDistrictBrowse(
   districtId: number | string,
+  electionId?: string,
 ): Promise<DistrictBrowseResponse> {
   return apiGet<DistrictBrowseResponse>(
     `/geography/district/${districtId}/browse`,
+    { election: electionId },
   );
 }
 
-export function getAbroadBrowse(): Promise<AbroadBrowseResponse> {
-  return apiGet<AbroadBrowseResponse>("/geography/abroad/browse");
+export function getAbroadBrowse(
+  electionId?: string,
+): Promise<AbroadBrowseResponse> {
+  return apiGet<AbroadBrowseResponse>("/geography/abroad/browse", {
+    election: electionId,
+  });
 }
 
 export function getRiks(): Promise<GeoEntity[]> {

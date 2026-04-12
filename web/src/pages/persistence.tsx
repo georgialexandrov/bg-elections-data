@@ -170,18 +170,18 @@ export default function Persistence() {
     }
   };
 
-  // Infinite-scroll sentinel.
-  const sentinelRef = useRef<HTMLTableRowElement>(null);
+  const mobileSentinelRef = useRef<HTMLDivElement>(null);
+  const desktopSentinelRef = useRef<HTMLTableRowElement>(null);
   useEffect(() => {
-    const node = sentinelRef.current;
-    if (!node || !hasNextPage || isFetchingNextPage) return;
+    const nodes = [mobileSentinelRef.current, desktopSentinelRef.current].filter(Boolean) as Element[];
+    if (nodes.length === 0 || !hasNextPage || isFetchingNextPage) return;
     const io = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting) fetchNextPage();
+        if (entries.some((e) => e.isIntersecting)) fetchNextPage();
       },
       { rootMargin: "400px" },
     );
-    io.observe(node);
+    nodes.forEach((n) => io.observe(n));
     return () => io.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
@@ -212,7 +212,7 @@ export default function Persistence() {
   const sortLabel = sortLabelMap[sort] ?? sort;
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className={`flex h-full flex-col overflow-hidden ${expandedSection ? "md:pr-[480px]" : ""}`}>
       {/* Page header — intro + collapsible methodology */}
       <div className="shrink-0 border-b border-border bg-background px-3 py-2.5 md:px-4 md:py-3">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
@@ -261,13 +261,94 @@ export default function Persistence() {
         )}
       </div>
 
-      {/* Table */}
-      <div className="flex-1 overflow-auto">
+      {/* Mobile sort bar */}
+      <div className="flex shrink-0 items-center gap-2 border-b border-border bg-background px-3 py-2 md:hidden">
+        <span className="text-[11px] text-muted-foreground">Сортирай:</span>
+        <Select
+          value={sort}
+          onValueChange={(v: string | null) => {
+            if (v) handleSort(v as SortColumn);
+          }}
+        >
+          <SelectTrigger size="sm" className="flex-1 text-xs">
+            <SelectValue>{sortLabelMap[sort]}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.entries(sortLabelMap) as [SortColumn, string][]).map(([col, label]) => (
+              <SelectItem key={col} value={col}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <button
+          onClick={() => setParam({ order: order === "desc" ? "asc" : "desc" })}
+          className="flex size-7 items-center justify-center rounded-md border border-input text-xs"
+        >
+          {order === "desc" ? "↓" : "↑"}
+        </button>
+      </div>
+
+      {/* Mobile cards */}
+      <div className="flex-1 overflow-auto md:hidden">
+        {error && <div className="p-4 text-sm text-red-600">{error}</div>}
+        {loading && !data && <div className="p-4 text-sm text-muted-foreground">Зареждане...</div>}
+        {data && (
+          <div className="divide-y divide-border">
+            {sections.map((s) => (
+              <div
+                key={s.section_code}
+                className={`cursor-pointer px-3 py-2.5 transition-colors active:bg-muted/50 ${expandedSection === s.section_code ? "bg-muted/50" : ""}`}
+                onClick={() => setParam({ preview: expandedSection === s.section_code ? null : s.section_code })}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <a
+                      href={`/section/${s.section_code}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-[11px] tabular-nums hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {s.section_code}
+                    </a>
+                    <span className="ml-1.5 text-[11px] text-muted-foreground">{s.settlement_name ?? "—"}</span>
+                  </div>
+                  <ScoreBadge value={s.persistence_score} size="lg" />
+                </div>
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                  <span className="text-muted-foreground">
+                    Отбелязани <span className="font-mono font-semibold tabular-nums text-foreground">{s.elections_flagged}</span>
+                    <span className="text-muted-foreground">/{s.elections_present}</span>
+                  </span>
+                  <span className="text-muted-foreground">Консист. <span className="font-mono tabular-nums text-foreground">{(s.consistency * 100).toFixed(0)}%</span></span>
+                  <span className="text-muted-foreground">Ср. риск <ScoreBadge value={s.avg_risk} /></span>
+                  <span className="text-muted-foreground">Макс. <ScoreBadge value={s.max_risk} /></span>
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                  <span className="text-muted-foreground">Списък <span className="font-mono tabular-nums text-foreground">{s.avg_registered.toLocaleString("bg-BG")}</span></span>
+                  <span className="text-muted-foreground">Гласували <span className="font-mono tabular-nums text-foreground">{s.avg_voted.toLocaleString("bg-BG")}</span></span>
+                  <span className="text-muted-foreground">Активност <span className={`font-mono font-semibold tabular-nums ${s.avg_turnout > 1 ? "text-red-600" : "text-foreground"}`}>{(s.avg_turnout * 100).toFixed(1)}%</span></span>
+                </div>
+                <div className="mt-1.5">
+                  <FlagDots section={s} electionsCount={s.elections_present} />
+                </div>
+              </div>
+            ))}
+            {hasNextPage && (
+              <div ref={mobileSentinelRef} className="px-4 py-6 text-center text-[11px] text-muted-foreground">
+                {isFetchingNextPage ? "Зареждане..." : `Зареждам следващи секции (${sections.length} / ${total.toLocaleString("bg-BG")})`}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden flex-1 overflow-auto md:block">
         {error && <div className="p-4 text-sm text-red-600">{error}</div>}
         {loading && !data && <div className="p-4 text-sm text-muted-foreground">Зареждане...</div>}
 
         {data && (
-          <table className="min-w-[900px] text-xs">
+          <table className="w-full text-xs">
             <thead className="sticky top-0 z-10 border-b border-border bg-background">
               <tr>
                 <SortHeader
@@ -308,7 +389,6 @@ export default function Persistence() {
                   currentSort={sort}
                   currentOrder={order}
                   onSort={handleSort}
-                  className="hidden md:table-cell"
                   tooltip="Процент отбелязани спрямо общо избори. 100% = отбелязана във всеки избор, в който присъства."
                 />
                 <SortHeader
@@ -317,7 +397,6 @@ export default function Persistence() {
                   currentSort={sort}
                   currentOrder={order}
                   onSort={handleSort}
-                  className="hidden md:table-cell"
                   tooltip="Средна стойност на комбинирания риск през всички избори, в които секцията присъства."
                 />
                 <SortHeader
@@ -335,7 +414,6 @@ export default function Persistence() {
                   currentSort={sort}
                   currentOrder={order}
                   onSort={handleSort}
-                  className="hidden md:table-cell"
                   tooltip="Средно избиратели в списъка на секцията през всички избори."
                 />
                 <SortHeader
@@ -344,7 +422,6 @@ export default function Persistence() {
                   currentSort={sort}
                   currentOrder={order}
                   onSort={handleSort}
-                  className="hidden md:table-cell"
                   tooltip="Средно гласували в секцията през всички избори."
                 />
                 <SortHeader
@@ -353,7 +430,6 @@ export default function Persistence() {
                   currentSort={sort}
                   currentOrder={order}
                   onSort={handleSort}
-                  className="hidden md:table-cell"
                   tooltip="Средна активност (гласували / списък). Стойност над 100% е физически невъзможна."
                 />
                 <th
@@ -398,18 +474,18 @@ export default function Persistence() {
                       </div>
                     </div>
                   </td>
-                  <td className="hidden px-2 py-1.5 font-mono tabular-nums md:table-cell">
+                  <td className="px-2 py-1.5 font-mono tabular-nums">
                     {(s.consistency * 100).toFixed(0)}%
                   </td>
-                  <td className="hidden px-2 py-1.5 md:table-cell"><ScoreBadge value={s.avg_risk} /></td>
+                  <td className="px-2 py-1.5"><ScoreBadge value={s.avg_risk} /></td>
                   <td className="hidden px-2 py-1.5 lg:table-cell"><ScoreBadge value={s.max_risk} /></td>
-                  <td className="hidden px-2 py-1.5 font-mono tabular-nums md:table-cell">
+                  <td className="px-2 py-1.5 font-mono tabular-nums">
                     {s.avg_registered.toLocaleString("bg-BG")}
                   </td>
-                  <td className="hidden px-2 py-1.5 font-mono tabular-nums md:table-cell">
+                  <td className="px-2 py-1.5 font-mono tabular-nums">
                     {s.avg_voted.toLocaleString("bg-BG")}
                   </td>
-                  <td className="hidden px-2 py-1.5 md:table-cell">
+                  <td className="px-2 py-1.5">
                     <span className={`font-mono font-semibold tabular-nums ${s.avg_turnout > 1 ? "text-red-600" : ""}`}>
                       {(s.avg_turnout * 100).toFixed(1)}%
                     </span>
@@ -419,9 +495,8 @@ export default function Persistence() {
                   </td>
                 </tr>
               ))}
-              {/* Infinite-scroll sentinel. */}
               {hasNextPage && (
-                <tr ref={sentinelRef}>
+                <tr ref={desktopSentinelRef}>
                   <td
                     colSpan={11}
                     className="px-4 py-6 text-center text-[11px] text-muted-foreground"

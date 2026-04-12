@@ -65,19 +65,19 @@ export function useAbroadSummary() {
   });
 }
 
-export function useDistrictBrowse(districtId: number | string | undefined) {
+export function useDistrictBrowse(districtId: number | string | undefined, electionId?: string) {
   return useQuery({
-    queryKey: ["district-browse", districtId],
-    queryFn: () => getDistrictBrowse(districtId!),
+    queryKey: ["district-browse", districtId, electionId],
+    queryFn: () => getDistrictBrowse(districtId!, electionId),
     enabled: districtId != null,
     staleTime: Infinity,
   });
 }
 
-export function useAbroadBrowse() {
+export function useAbroadBrowse(electionId?: string) {
   return useQuery({
-    queryKey: ["abroad-browse"],
-    queryFn: getAbroadBrowse,
+    queryKey: ["abroad-browse", electionId],
+    queryFn: () => getAbroadBrowse(electionId ?? undefined),
     staleTime: Infinity,
   });
 }

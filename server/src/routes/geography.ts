@@ -185,6 +185,7 @@ geography.get("/search-index", (c) => {
 geography.get("/district/:id/browse", (c) => {
   const db = getDb();
   const { id } = c.req.param();
+  const electionId = c.req.query("election");
   if (!/^\d+$/.test(id)) {
     return c.json({ error: "District id must be numeric" }, 400);
   }
@@ -195,6 +196,10 @@ geography.get("/district/:id/browse", (c) => {
   if (!district) {
     return c.json({ error: "District not found" }, 404);
   }
+
+  const electionFilter = electionId ? "AND s.election_id = ?" : "";
+  const params: (string | number)[] = [Number(id)];
+  if (electionId) params.push(Number(electionId));
 
   const rows = db
     .prepare(
@@ -208,16 +213,16 @@ geography.get("/district/:id/browse", (c) => {
         l.lat                      AS lat,
         l.lng                      AS lng,
         COUNT(DISTINCT s.section_code) AS section_count,
-        MIN(s.section_code)            AS section_code
+        GROUP_CONCAT(DISTINCT s.section_code) AS section_codes
       FROM locations l
       LEFT JOIN municipalities m ON m.id = l.municipality_id
       JOIN sections s ON s.location_id = l.id
-      WHERE l.district_id = ?
+      WHERE l.district_id = ? ${electionFilter}
       GROUP BY l.id
       ORDER BY m.name COLLATE NOCASE, l.settlement_name COLLATE NOCASE, l.address COLLATE NOCASE
       `
     )
-    .all(id);
+    .all(...params);
 
   c.header("Cache-Control", "public, max-age=3600");
   return c.json({ district, locations: rows });
@@ -232,6 +237,11 @@ geography.get("/district/:id/browse", (c) => {
  */
 geography.get("/abroad/browse", (c) => {
   const db = getDb();
+  const electionId = c.req.query("election");
+
+  const electionFilter = electionId ? "AND s.election_id = ?" : "";
+  const params: (string | number)[] = [];
+  if (electionId) params.push(Number(electionId));
 
   const rows = db
     .prepare(
@@ -253,15 +263,15 @@ geography.get("/abroad/browse", (c) => {
           ELSE ''
         END               AS city,
         COUNT(DISTINCT s.section_code) AS section_count,
-        MIN(s.section_code)            AS section_code
+        GROUP_CONCAT(DISTINCT s.section_code) AS section_codes
       FROM locations l
       JOIN sections s ON s.location_id = l.id
-      WHERE l.district_id IS NULL
+      WHERE l.district_id IS NULL ${electionFilter}
       GROUP BY l.id
       ORDER BY country COLLATE NOCASE, city COLLATE NOCASE, l.address COLLATE NOCASE
       `
     )
-    .all();
+    .all(...params);
 
   c.header("Cache-Control", "public, max-age=3600");
   return c.json({ locations: rows });

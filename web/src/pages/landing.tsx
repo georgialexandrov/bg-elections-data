@@ -58,7 +58,7 @@ export default function Landing() {
             {districts.map((d) => (
               <Link
                 key={d.id}
-                to={`/browse/district/${d.id}`}
+                to={latestId ? `/browse/district/${d.id}?election=${latestId}` : `/browse/district/${d.id}`}
                 className="group flex flex-col rounded-md border border-border bg-card px-3 py-2.5 transition-all hover:border-foreground/30 hover:shadow-sm"
               >
                 <span className="text-sm font-medium text-foreground group-hover:text-[#ce463c]">
@@ -70,7 +70,7 @@ export default function Landing() {
               </Link>
             ))}
             <Link
-              to="/browse/abroad"
+              to={latestId ? `/browse/abroad?election=${latestId}` : "/browse/abroad"}
               className="group flex flex-col rounded-md border border-border bg-secondary/40 px-3 py-2.5 transition-all hover:border-foreground/30 hover:shadow-sm"
             >
               <span className="flex items-center gap-1.5 text-sm font-medium text-foreground group-hover:text-[#ce463c]">

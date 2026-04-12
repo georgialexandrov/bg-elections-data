@@ -313,7 +313,7 @@ export interface BrowseLocation {
   lat: number | null;
   lng: number | null;
   section_count: number;
-  section_code: string;
+  section_codes: string;
 }
 
 export interface DistrictBrowseLocation extends BrowseLocation {

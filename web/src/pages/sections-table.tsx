@@ -195,19 +195,18 @@ export default function SectionsTable() {
     ? sections.find((s) => s.section_code === selectedCode) ?? null
     : null;
 
-  // IntersectionObserver sentinel: fire fetchNextPage when the last row
-  // enters the viewport.
-  const sentinelRef = useRef<HTMLTableRowElement>(null);
+  const mobileSentinelRef = useRef<HTMLDivElement>(null);
+  const desktopSentinelRef = useRef<HTMLTableRowElement>(null);
   useEffect(() => {
-    const node = sentinelRef.current;
-    if (!node || !hasNextPage || isFetchingNextPage) return;
+    const nodes = [mobileSentinelRef.current, desktopSentinelRef.current].filter(Boolean) as Element[];
+    if (nodes.length === 0 || !hasNextPage || isFetchingNextPage) return;
     const io = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting) fetchNextPage();
+        if (entries.some((e) => e.isIntersecting)) fetchNextPage();
       },
       { rootMargin: "400px" },
     );
-    io.observe(node);
+    nodes.forEach((n) => io.observe(n));
     return () => io.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
@@ -246,7 +245,7 @@ export default function SectionsTable() {
   const sortLabel = sortLabelMap[sort] ?? sort;
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className={`flex h-full flex-col overflow-hidden ${selectedSection ? "md:pr-[480px]" : ""}`}>
       {/* Page header — intro + collapsible methodology */}
       <div className="shrink-0 border-b border-border bg-background px-3 py-2.5 md:px-4 md:py-3">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
@@ -296,9 +295,102 @@ export default function SectionsTable() {
         )}
       </div>
 
-      {/* Table */}
-      <div className="flex-1 overflow-auto">
-        <table className="min-w-[900px] text-xs">
+      {/* Mobile sort bar */}
+      <div className="flex shrink-0 items-center gap-2 border-b border-border bg-background px-3 py-2 md:hidden">
+        <span className="text-[11px] text-muted-foreground">Сортирай:</span>
+        <Select
+          value={sort}
+          onValueChange={(v: string | null) => {
+            if (v) setSort(v as SortColumn);
+          }}
+        >
+          <SelectTrigger size="sm" className="flex-1 text-xs">
+            <SelectValue>{sortLabelMap[sort]}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.entries(sortLabelMap) as [SortColumn, string][]).map(([col, label]) => (
+              <SelectItem key={col} value={col}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <button
+          onClick={() => setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            next.set("order", order === "desc" ? "asc" : "desc");
+            return next;
+          }, { replace: true })}
+          className="flex size-7 items-center justify-center rounded-md border border-input text-xs"
+        >
+          {order === "desc" ? "↓" : "↑"}
+        </button>
+      </div>
+
+      {/* Mobile cards */}
+      <div className="flex-1 overflow-auto md:hidden">
+        <div className="divide-y divide-border">
+          {sections.map((s) => (
+            <div
+              key={s.section_code}
+              onClick={() => setSearchParams((prev) => {
+                const next = new URLSearchParams(prev);
+                if (selectedCode === s.section_code) next.delete("section");
+                else next.set("section", s.section_code);
+                return next;
+              }, { replace: true })}
+              className={`cursor-pointer px-3 py-2.5 transition-colors active:bg-secondary/50 ${
+                selectedCode === s.section_code ? "bg-secondary" : ""
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <span className="font-mono text-[11px] tabular-nums">{s.section_code}</span>
+                  <span className="ml-1.5 text-[11px] text-muted-foreground truncate">{s.settlement_name}</span>
+                  {SECTION_TYPE_LABELS[s.section_type] && (
+                    <span className="ml-1 rounded bg-muted px-1 py-0.5 text-[10px] font-medium">{SECTION_TYPE_LABELS[s.section_type]}</span>
+                  )}
+                </div>
+                <ScoreBadge value={s.risk_score} size="lg" />
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                <span className="text-muted-foreground">Списък <span className="font-mono tabular-nums text-foreground">{(s.registered_voters ?? 0).toLocaleString()}</span></span>
+                <span className="text-muted-foreground">Гласували <span className="font-mono tabular-nums text-foreground">{(s.actual_voters ?? 0).toLocaleString()}</span></span>
+                <span className="text-muted-foreground">Активност <span className={`font-mono font-semibold tabular-nums ${s.turnout_rate > 1 ? "text-red-600" : "text-foreground"}`}>{pct2(s.turnout_rate * 100)}%</span></span>
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] text-muted-foreground">B</span><ScoreBadge value={s.benford_risk} />
+                <span className="text-[10px] text-muted-foreground">P</span><ScoreBadge value={s.peer_risk} />
+                <span className="text-[10px] text-muted-foreground">A</span><ScoreBadge value={s.acf_risk} />
+                {s.acf_multicomponent >= 1 && (
+                  <span className="rounded bg-orange-100 px-1 py-0.5 text-[10px] text-orange-700">×3</span>
+                )}
+                {s.protocol_violation_count > 0 && (
+                  <span className={`rounded px-1 py-0.5 text-[10px] font-mono font-semibold ${
+                    s.protocol_violation_count >= 3 ? "bg-red-100 text-red-800" : "bg-orange-100 text-orange-800"
+                  }`}>
+                    Пр:{s.protocol_violation_count}
+                  </span>
+                )}
+                {s.arithmetic_error > 0 && <span className="rounded bg-red-100 px-1 py-0.5 text-[10px] text-red-700">АГ</span>}
+                {s.vote_sum_mismatch > 0 && <span className="rounded bg-red-100 px-1 py-0.5 text-[10px] text-red-700">НС</span>}
+              </div>
+            </div>
+          ))}
+          {!loading && sections.length === 0 && (
+            <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+              Няма секции, отговарящи на филтрите
+            </div>
+          )}
+          {hasNextPage && (
+            <div ref={mobileSentinelRef} className="px-4 py-6 text-center text-[11px] text-muted-foreground">
+              {isFetchingNextPage ? "Зареждане..." : `Зареждам следващи секции (${sections.length} / ${total.toLocaleString("bg-BG")})`}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden flex-1 overflow-auto md:block">
+        <table className="w-full text-xs">
           <thead className="sticky top-0 z-10 border-b border-border bg-background">
             <tr>
               <SortHeader label="Секция" column="section_code" currentSort={sort} currentOrder={order} onSort={setSort} tooltip="Номер на избирателна секция. Кликнете за сортиране." />
@@ -344,7 +436,6 @@ export default function SectionsTable() {
                 currentSort={sort}
                 currentOrder={order}
                 onSort={setSort}
-                className="hidden md:table-cell"
                 tooltip="Разпределение на първите цифри на броя гласове. Закон на Бенфорд. Високи стойности = числата не следват естествен модел на броене."
               />
               <SortHeader
@@ -353,7 +444,6 @@ export default function SectionsTable() {
                 currentSort={sort}
                 currentOrder={order}
                 onSort={setSort}
-                className="hidden md:table-cell"
                 tooltip="Сравнение със съседните секции от същото населено място. Високи стойности = рязко отклонение от съседите."
               />
               <SortHeader
@@ -362,7 +452,6 @@ export default function SectionsTable() {
                 currentSort={sort}
                 currentOrder={order}
                 onSort={setSort}
-                className="hidden md:table-cell"
                 tooltip="Методология на Антикорупционен фонд: (1) нетипична активност или резултат спрямо общината, (2) рязка промяна в активността между два избора, (3) рязка промяна в политическите пристрастия. ×3 = и трите проверки са задействани."
               />
               <SortHeader
@@ -380,7 +469,12 @@ export default function SectionsTable() {
               <>
                 <tr
                   key={s.section_code}
-                  onClick={() => setParam("section", selectedCode === s.section_code ? "" : s.section_code)}
+                  onClick={() => setSearchParams((prev) => {
+                    const next = new URLSearchParams(prev);
+                    if (selectedCode === s.section_code) next.delete("section");
+                    else next.set("section", s.section_code);
+                    return next;
+                  }, { replace: true })}
                   className={`cursor-pointer border-b border-border/50 transition-colors hover:bg-secondary/50 ${
                     selectedCode === s.section_code ? "bg-secondary" : ""
                   }`}
@@ -411,9 +505,9 @@ export default function SectionsTable() {
                     )}
                   </td>
                   <td className="whitespace-nowrap px-2 py-1.5"><ScoreBadge value={s.risk_score} /></td>
-                  <td className="hidden whitespace-nowrap px-2 py-1.5 md:table-cell"><ScoreBadge value={s.benford_risk} /></td>
-                  <td className="hidden whitespace-nowrap px-2 py-1.5 md:table-cell"><ScoreBadge value={s.peer_risk} /></td>
-                  <td className="hidden whitespace-nowrap px-2 py-1.5 md:table-cell">
+                  <td className="whitespace-nowrap px-2 py-1.5"><ScoreBadge value={s.benford_risk} /></td>
+                  <td className="whitespace-nowrap px-2 py-1.5"><ScoreBadge value={s.peer_risk} /></td>
+                  <td className="whitespace-nowrap px-2 py-1.5">
                     <div className="flex items-center gap-1">
                       <ScoreBadge value={s.acf_risk} />
                       {s.acf_multicomponent >= 1 && (
@@ -432,7 +526,12 @@ export default function SectionsTable() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setParam("expand", expandedCode === s.section_code ? "" : s.section_code);
+                            setSearchParams((prev) => {
+                              const next = new URLSearchParams(prev);
+                              if (expandedCode === s.section_code) next.delete("expand");
+                              else next.set("expand", s.section_code);
+                              return next;
+                            }, { replace: true });
                           }}
                           className={`rounded px-1.5 py-0.5 text-[11px] font-mono font-semibold tabular-nums ${
                             s.protocol_violation_count >= 3 ? "bg-red-100 text-red-800" : "bg-orange-100 text-orange-800"
@@ -478,10 +577,8 @@ export default function SectionsTable() {
                 </td>
               </tr>
             )}
-            {/* Infinite-scroll sentinel. The IntersectionObserver set up
-                above fires fetchNextPage when this row becomes visible. */}
             {hasNextPage && (
-              <tr ref={sentinelRef}>
+              <tr ref={desktopSentinelRef}>
                 <td
                   colSpan={12}
                   className="px-4 py-6 text-center text-[11px] text-muted-foreground"
@@ -550,7 +647,6 @@ function FiltersBar(props: {
     sectionFilter,
     districts,
     municipalities,
-    setParam,
     setSearchParams,
     activeFilterCount,
   } = props;
