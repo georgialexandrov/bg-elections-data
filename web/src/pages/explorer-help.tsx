@@ -3,7 +3,7 @@ import AppFooter from "@/components/app-footer.js";
 
 const GITHUB_URL = "https://github.com/datasciencesociety/elections";
 const GITHUB_BRANCH_URL = `${GITHUB_URL}/tree/feature/web-visualize`;
-const ZIP_URL = `${GITHUB_URL}/archive/refs/heads/feature/web-visualize.zip`;
+const ZIP_URL = `${GITHUB_URL}/releases/latest/download/elections-explorer.zip`;
 const DB_URL = `${GITHUB_URL}/releases/latest/download/elections.db`;
 const CLAUDE_DESKTOP_URL = "https://claude.ai/download";
 
@@ -83,8 +83,7 @@ export default function ExplorerHelp() {
               Свали проекта (.zip)
             </a>
             <p className="mt-2 text-xs text-muted-foreground">
-              След разархивиране ще имате папка <strong>elections-feature-web-visualize</strong>.
-              Вътре намерете папката <strong>elections-explorer</strong>.
+              След разархивиране ще имате папка <strong>elections-explorer</strong>.
             </p>
           </Step>
 
