@@ -266,18 +266,16 @@ function BrowseRow({
 }) {
   const codes = sectionCodes.split(",").sort();
   return (
-    <div className="flex items-center gap-3 px-4 py-3">
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium text-foreground">
-          {primary}
-        </div>
-        {secondary && (
-          <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
-            {secondary}
-          </div>
-        )}
+    <div className="px-4 py-3">
+      <div className="text-sm font-medium text-foreground">
+        {primary}
       </div>
-      <div className="flex shrink-0 flex-wrap justify-end gap-1">
+      {secondary && (
+        <div className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+          {secondary}
+        </div>
+      )}
+      <div className="mt-1.5 flex flex-wrap gap-1">
         {codes.map((code) => (
           <Link
             key={code}

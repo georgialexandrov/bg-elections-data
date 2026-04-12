@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Outlet, NavLink, Link, useParams, useNavigate, useLocation } from "react-router";
 import { trackEvent } from "@/lib/analytics.js";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Share2, Check } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -29,11 +29,25 @@ export default function Layout() {
   const location = useLocation();
   const { data: elections = [] } = useElections();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Close menu on navigation
   useEffect(() => {
     setMenuOpen(false);
   }, [electionId, location.pathname]);
+
+  const handleShare = useCallback(async () => {
+    const url = window.location.href;
+    if (navigator.share) {
+      try {
+        await navigator.share({ url });
+      } catch { /* user cancelled */ }
+      return;
+    }
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, []);
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `rounded px-2.5 py-1.5 text-xs font-medium uppercase tracking-wide transition-colors ${
@@ -111,10 +125,19 @@ export default function Layout() {
           <SearchBox variant="compact" placeholder="Търсете секция..." />
         </div>
 
+        {/* Share button */}
+        <button
+          onClick={handleShare}
+          className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          title={copied ? "Копирано!" : "Сподели тази страница"}
+        >
+          {copied ? <Check size={18} className="text-green-600" /> : <Share2 size={18} />}
+        </button>
+
         {/* Mobile hamburger */}
         <button
           onClick={() => setMenuOpen(!menuOpen)}
-          className="ml-auto rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground md:hidden"
+          className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground md:hidden"
         >
           {menuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
