@@ -1,6 +1,10 @@
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import app from "./app.js";
+import { botMetaMiddleware } from "./og/bot-meta.js";
+
+// Bot meta injection — intercepts social crawlers before static serving
+app.use("/*", botMetaMiddleware);
 
 // Cache headers for static assets.
 // Hashed Vite bundles (/assets/*) are immutable — cache forever.

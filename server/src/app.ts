@@ -3,6 +3,7 @@ import elections from "./routes/elections.js";
 import geography from "./routes/geography.js";
 import parties from "./routes/parties.js";
 import { handleMcpRequest } from "./mcp/handler.js";
+import og from "./og/route.js";
 
 const app = new Hono();
 
@@ -17,6 +18,7 @@ app.use("/api/*", async (c, next) => {
   }
 });
 
+app.route("/og", og);
 app.route("/api/elections", elections);
 app.route("/api/geography", geography);
 // Hidden for now — not ready for public release
