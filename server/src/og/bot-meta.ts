@@ -5,9 +5,6 @@ import getDb from "../db.js";
 import { getElection } from "../lib/get-election.js";
 import { getOgSectionDetail, getOgMunicipality, getOgSectionElection } from "./queries.js";
 
-const BOT_UA =
-  /facebookexternalhit|Twitterbot|LinkedInBot|Slackbot|Discordbot|TelegramBot|WhatsApp|Viber|Googlebot|bingbot|yandex/i;
-
 let indexHtml: string | null = null;
 
 function getIndexHtml(): string {
