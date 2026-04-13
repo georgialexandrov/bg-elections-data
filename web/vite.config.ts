@@ -11,10 +11,15 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    sentryVitePlugin({
-      org: "elections-ip",
-      project: "javascript-react",
-    }),
+    process.env.SENTRY_AUTH_TOKEN
+      ? sentryVitePlugin({
+          org: "elections-ip",
+          project: "javascript-react",
+          sourcemaps: {
+            filesToDeleteAfterUpload: ["./dist/assets/*.map"],
+          },
+        })
+      : null,
   ],
   resolve: {
     alias: {
