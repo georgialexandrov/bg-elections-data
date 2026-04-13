@@ -22,6 +22,9 @@ function getIndexHtml(): string {
 
 const BASE_URL = process.env.BASE_URL || "https://karta.izborenmonitor.com";
 
+// Bump this to bust Cloudflare's cache after OG image renderer changes
+const OG_VERSION = "v2";
+
 interface OgMeta {
   title: string;
   description: string;
@@ -179,19 +182,21 @@ function resolveOgMeta(path: string, searchParams: URLSearchParams): OgMeta | nu
 }
 
 function injectMeta(html: string, meta: OgMeta): string {
+  // Append version to image URL to bust CDN cache after renderer changes
+  const imgUrl = meta.image + (meta.image.includes("?") ? `&${OG_VERSION}` : `?${OG_VERSION}`);
   const tags = `
     <meta name="description" content="${esc(meta.description)}" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="${esc(meta.title)}" />
     <meta property="og:description" content="${esc(meta.description)}" />
-    <meta property="og:image" content="${esc(meta.image)}" />
+    <meta property="og:image" content="${esc(imgUrl)}" />
     <meta property="og:url" content="${esc(meta.url)}" />
     <meta property="og:site_name" content="Изборен монитор" />
     <meta property="og:locale" content="bg_BG" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="${esc(meta.title)}" />
     <meta name="twitter:description" content="${esc(meta.description)}" />
-    <meta name="twitter:image" content="${esc(meta.image)}" />
+    <meta name="twitter:image" content="${esc(imgUrl)}" />
     <title>${esc(meta.title)}</title>`;
 
   // Strip existing OG/twitter/description meta tags and <title>, then inject new ones
