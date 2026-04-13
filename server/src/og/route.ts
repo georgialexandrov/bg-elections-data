@@ -11,6 +11,7 @@ import {
   getOgMunicipalityParties,
   getOgSectionDetail,
   getOgSectionRiskHistory,
+  getOgSectionElection,
   getOgDistrict,
   getOgPersistenceSummary,
 } from "./queries.js";
@@ -19,6 +20,7 @@ import {
   ResultsContextTemplate,
   AnomalyTemplate,
   SectionDetailTemplate,
+  SectionElectionTemplate,
   PersistenceTemplate,
   DistrictTemplate,
 } from "./templates.js";
@@ -155,7 +157,21 @@ og.get("/election/:id/table.png", async (c) => {
   );
 });
 
-// GET /og/section/:code
+// GET /og/election/:id/section/:code — per-election section detail
+og.get("/election/:id/section/:code", async (c) => {
+  const db = getDb();
+  const id = Number(c.req.param("id"));
+  const code = c.req.param("code").replace(/\.png$/, "");
+  const election = getOgElection(db, id);
+  if (!election) return c.text("Not found", 404);
+  const section = getOgSectionElection(db, id, code);
+  if (!section) return c.text("Not found", 404);
+  return servePng(`election-${id}-section-${code}`, () =>
+    renderOgImage(SectionElectionTemplate({ election, section })),
+  );
+});
+
+// GET /og/section/:code — cross-election section detail
 og.get("/section/:code", async (c) => {
   const db = getDb();
   const sectionCode = c.req.param("code").replace(/\.png$/, "");

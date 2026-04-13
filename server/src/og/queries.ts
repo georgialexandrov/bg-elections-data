@@ -244,6 +244,74 @@ export function getOgSectionRiskHistory(
     .all(sectionCode) as OgSectionRiskHistory[];
 }
 
+// ---------- Per-election section detail (for /:electionId/sections or /table shares) ----------
+
+export interface OgSectionElection {
+  section_code: string;
+  settlement_name: string | null;
+  address: string | null;
+  registered_voters: number;
+  actual_voters: number;
+  turnout_pct: number;
+  invalid_votes: number;
+  null_votes: number;
+  risk_score: number;
+  protocol_violation_count: number;
+  parties: OgTopParty[];
+}
+
+export function getOgSectionElection(
+  db: DatabaseType,
+  electionId: number,
+  sectionCode: string,
+): OgSectionElection | null {
+  const row = db
+    .prepare(
+      `SELECT ss.section_code,
+              l.settlement_name,
+              COALESCE(s.address, l.address) AS address,
+              p.registered_voters,
+              p.actual_voters,
+              ROUND(100.0 * p.actual_voters / NULLIF(p.registered_voters, 0), 1) AS turnout_pct,
+              p.invalid_votes,
+              p.null_votes,
+              ss.risk_score,
+              ss.protocol_violation_count
+         FROM section_scores ss
+         JOIN sections s ON s.election_id = ss.election_id AND s.section_code = ss.section_code
+         JOIN locations l ON l.id = s.location_id
+         LEFT JOIN protocols p ON p.election_id = ss.election_id AND p.section_code = ss.section_code
+        WHERE ss.election_id = ? AND ss.section_code = ?`,
+    )
+    .get(electionId, sectionCode) as Omit<OgSectionElection, "parties"> | undefined;
+
+  if (!row) return null;
+
+  const validVotes = db
+    .prepare(
+      `SELECT SUM(v.total) AS total FROM votes v WHERE v.election_id = ? AND v.section_code = ?`,
+    )
+    .get(electionId, sectionCode) as { total: number };
+
+  const denom = validVotes.total || 1;
+
+  const parties = db
+    .prepare(
+      `SELECT COALESCE(ep.name_on_ballot, pa.short_name, pa.canonical_name) AS name,
+              COALESCE(pa.color, '#888888') AS color,
+              v.total AS votes,
+              ROUND(100.0 * v.total / ?, 1) AS pct
+         FROM votes v
+         JOIN election_parties ep ON ep.election_id = v.election_id AND ep.ballot_number = v.party_number
+         JOIN parties pa ON pa.id = ep.party_id
+        WHERE v.election_id = ? AND v.section_code = ? AND v.total > 0
+        ORDER BY v.total DESC`,
+    )
+    .all(denom, electionId, sectionCode) as OgTopParty[];
+
+  return { ...row, parties };
+}
+
 export interface OgDistrict {
   id: number;
   name: string;

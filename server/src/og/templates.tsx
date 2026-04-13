@@ -10,6 +10,7 @@ import type {
   OgTopParty,
   OgSectionDetail,
   OgSectionRiskHistory,
+  OgSectionElection,
   OgDistrict,
   OgPersistenceSummary,
   OgMunicipality,
@@ -563,6 +564,108 @@ export function ResultsContextTemplate({
                 </div>
               );
             })}
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ─── Section in election (/:electionId/sections or /table share) ───
+
+function riskColor(score: number): string {
+  if (score >= 0.6) return RED;
+  if (score >= 0.3) return "#e8a838";
+  return "#22c55e";
+}
+
+export function SectionElectionTemplate({
+  election,
+  section,
+}: {
+  election: OgElection;
+  section: OgSectionElection;
+}) {
+  const topParties = section.parties.slice(0, 7);
+  const maxVotes = topParties[0]?.pct || 1;
+  const hasViolations = section.protocol_violation_count > 0;
+  const hasRisk = section.risk_score >= 0.3;
+
+  return (
+    <Card>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <Logo />
+        <span style={{ fontFamily: "Geist", fontSize: "16px", color: MUTED }}>
+          karta.izborenmonitor.com
+        </span>
+      </div>
+      <div style={{ display: "flex", flex: 1, gap: "40px", alignItems: "stretch" }}>
+        {/* Left column: section info + party bars */}
+        <div style={{ display: "flex", flexDirection: "column", flex: 1, justifyContent: "center", gap: "14px" }}>
+          {/* Section header */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <span style={{ fontFamily: "Geist", fontSize: "14px", color: MUTED, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              {election.name}
+            </span>
+            <span style={{ fontFamily: "EB Garamond", fontSize: "42px", fontWeight: 700, color: TEXT, lineHeight: "1.1" }}>
+              Секция {section.section_code}
+            </span>
+            {section.settlement_name && (
+              <span style={{ fontFamily: "Geist", fontSize: "16px", color: MUTED }}>
+                {section.settlement_name}
+                {section.address ? ` — ${section.address}` : ""}
+              </span>
+            )}
+          </div>
+          {/* Party results */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            {topParties.map((p) => (
+              <div key={p.name} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ display: "flex", width: `${Math.max(20, (p.pct / maxVotes) * 280)}px`, height: "18px", backgroundColor: p.color, borderRadius: "3px" }} />
+                <span style={{ fontFamily: "Geist", fontSize: "12px", color: TEXT }}>{p.name}</span>
+                <span style={{ fontFamily: "Geist", fontSize: "12px", color: MUTED }}>{p.pct}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Right column: protocol stats */}
+        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: "12px", width: "320px", flexShrink: 0 }}>
+          {/* Turnout block */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px", padding: "16px 20px", backgroundColor: STAT_BG, borderRadius: "10px", border: `1px solid ${BORDER}` }}>
+            <span style={{ fontFamily: "Geist", fontSize: "13px", color: MUTED }}>Активност</span>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
+              <span style={{ fontFamily: "Geist", fontSize: "36px", fontWeight: 700, color: TEXT }}>{section.turnout_pct}%</span>
+              <span style={{ fontFamily: "Geist", fontSize: "14px", color: MUTED }}>
+                {section.actual_voters} от {section.registered_voters}
+              </span>
+            </div>
+            {(section.invalid_votes > 0 || section.null_votes > 0) && (
+              <span style={{ fontFamily: "Geist", fontSize: "12px", color: MUTED }}>
+                {section.invalid_votes > 0 ? `${section.invalid_votes} невалидни` : ""}
+                {section.invalid_votes > 0 && section.null_votes > 0 ? " · " : ""}
+                {section.null_votes > 0 ? `${section.null_votes} не подкрепям никого` : ""}
+              </span>
+            )}
+          </div>
+          {/* Risk + violations row */}
+          <div style={{ display: "flex", gap: "10px" }}>
+            {/* Risk score */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px", padding: "14px 18px", backgroundColor: STAT_BG, borderRadius: "10px", border: `1px solid ${BORDER}`, flex: 1 }}>
+              <span style={{ fontFamily: "Geist", fontSize: "13px", color: MUTED }}>Аномалия</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ display: "flex", width: "10px", height: "10px", borderRadius: "5px", backgroundColor: riskColor(section.risk_score) }} />
+                <span style={{ fontFamily: "Geist", fontSize: "28px", fontWeight: 700, color: hasRisk ? riskColor(section.risk_score) : TEXT }}>
+                  {section.risk_score.toFixed(2)}
+                </span>
+              </div>
+            </div>
+            {/* Violations */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px", padding: "14px 18px", backgroundColor: hasViolations ? "#fef2f2" : STAT_BG, borderRadius: "10px", border: `1px solid ${hasViolations ? "#fecaca" : BORDER}`, flex: 1 }}>
+              <span style={{ fontFamily: "Geist", fontSize: "13px", color: MUTED }}>Нарушения</span>
+              <span style={{ fontFamily: "Geist", fontSize: "28px", fontWeight: 700, color: hasViolations ? RED : TEXT }}>
+                {section.protocol_violation_count}
+              </span>
+            </div>
           </div>
         </div>
       </div>

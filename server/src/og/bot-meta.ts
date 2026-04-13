@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import getDb from "../db.js";
 import { getElection } from "../lib/get-election.js";
-import { getOgSectionDetail, getOgMunicipality } from "./queries.js";
+import { getOgSectionDetail, getOgMunicipality, getOgSectionElection } from "./queries.js";
 
 const BOT_UA =
   /facebookexternalhit|Twitterbot|LinkedInBot|Slackbot|Discordbot|TelegramBot|WhatsApp|Viber|Googlebot|bingbot|yandex/i;
@@ -74,11 +74,24 @@ function resolveOgMeta(path: string, searchParams: URLSearchParams): OgMeta | nu
     };
   }
 
-  // Anomaly map: /:id/sections
+  // Anomaly map: /:id/sections?section=CODE
   match = path.match(/^\/(\d+)\/sections\/?$/);
   if (match) {
     const election = getElection(db, Number(match[1]));
     if (!election) return null;
+    const sectionCode = searchParams.get("section");
+    if (sectionCode) {
+      const sec = getOgSectionElection(db, election.id, sectionCode);
+      if (sec) {
+        const loc = [sec.settlement_name, sec.address].filter(Boolean).join(", ");
+        return {
+          title: `Секция ${sectionCode} — ${election.name}`,
+          description: `Активност ${sec.turnout_pct}%. ${sec.protocol_violation_count} нарушения. ${loc}`,
+          image: `${BASE_URL}/og/election/${election.id}/section/${sectionCode}.png`,
+          url: `${BASE_URL}/${election.id}/sections?section=${sectionCode}`,
+        };
+      }
+    }
     return {
       title: `${election.name} — Карта на аномалиите`,
       description: `Секции с аномалии за ${election.name}. Бенфорд, ACF, отклонение от съседи, аритметични нарушения.`,
@@ -87,11 +100,24 @@ function resolveOgMeta(path: string, searchParams: URLSearchParams): OgMeta | nu
     };
   }
 
-  // Sections table: /:id/table
+  // Sections table: /:id/table?section=CODE
   match = path.match(/^\/(\d+)\/table\/?$/);
   if (match) {
     const election = getElection(db, Number(match[1]));
     if (!election) return null;
+    const sectionCode = searchParams.get("section");
+    if (sectionCode) {
+      const sec = getOgSectionElection(db, election.id, sectionCode);
+      if (sec) {
+        const loc = [sec.settlement_name, sec.address].filter(Boolean).join(", ");
+        return {
+          title: `Секция ${sectionCode} — ${election.name}`,
+          description: `Активност ${sec.turnout_pct}%. ${sec.protocol_violation_count} нарушения. ${loc}`,
+          image: `${BASE_URL}/og/election/${election.id}/section/${sectionCode}.png`,
+          url: `${BASE_URL}/${election.id}/table?section=${sectionCode}`,
+        };
+      }
+    }
     return {
       title: `${election.name} — Таблица на секциите`,
       description: `Подробна таблица на секциите за ${election.name}. Рискови показатели, явка, нарушения.`,
