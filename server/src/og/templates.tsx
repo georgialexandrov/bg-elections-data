@@ -12,16 +12,18 @@ import type {
   OgSectionRiskHistory,
   OgDistrict,
   OgPersistenceSummary,
+  OgMunicipality,
 } from "./queries.js";
 
-// Brand
+// Brand — light theme
 const RED = "#ce463c";
-const BG = "#1a1a1a";
-const WHITE = "#ffffff";
-const GRAY = "#999999";
-const LIGHT_BG = "#222222";
+const BG = "#fbfbfb";
+const TEXT = "#1a1a1a";
+const MUTED = "#666666";
+const STAT_BG = "#f0efed";
+const BORDER = "#e5e3e0";
 
-// Shared wrapper — dark card with red accent line at top
+// Shared wrapper — white card with red accent line at top
 function Card({ children }: { children: ReactNode }) {
   return (
     <div
@@ -66,7 +68,7 @@ function Logo() {
         style={{
           fontFamily: "Geist",
           fontSize: "18px",
-          color: GRAY,
+          color: MUTED,
           letterSpacing: "0.05em",
         }}
       >
@@ -84,15 +86,16 @@ function Stat({ label, value }: { label: string; value: string | number }) {
         flexDirection: "column",
         gap: "4px",
         padding: "16px 24px",
-        backgroundColor: LIGHT_BG,
+        backgroundColor: STAT_BG,
         borderRadius: "8px",
+        border: `1px solid ${BORDER}`,
       }}
     >
-      <span style={{ fontFamily: "Geist", fontSize: "14px", color: GRAY }}>
+      <span style={{ fontFamily: "Geist", fontSize: "14px", color: MUTED }}>
         {label}
       </span>
       <span
-        style={{ fontFamily: "Geist", fontSize: "32px", fontWeight: 700, color: WHITE }}
+        style={{ fontFamily: "Geist", fontSize: "32px", fontWeight: 700, color: TEXT }}
       >
         {String(value)}
       </span>
@@ -120,7 +123,7 @@ export function LandingTemplate() {
             fontFamily: "EB Garamond",
             fontSize: "64px",
             fontWeight: 700,
-            color: WHITE,
+            color: TEXT,
             lineHeight: "1.1",
           }}
         >
@@ -141,7 +144,7 @@ export function LandingTemplate() {
           style={{
             fontFamily: "Geist",
             fontSize: "22px",
-            color: GRAY,
+            color: MUTED,
             marginTop: "12px",
           }}
         >
@@ -177,7 +180,7 @@ export function ElectionResultsTemplate({
           style={{
             fontFamily: "Geist",
             fontSize: "18px",
-            color: GRAY,
+            color: MUTED,
             textTransform: "uppercase",
             letterSpacing: "0.08em",
           }}
@@ -189,7 +192,7 @@ export function ElectionResultsTemplate({
             fontFamily: "EB Garamond",
             fontSize: "52px",
             fontWeight: 700,
-            color: WHITE,
+            color: TEXT,
             lineHeight: "1.1",
           }}
         >
@@ -208,10 +211,10 @@ export function ElectionResultsTemplate({
                   borderRadius: "4px",
                 }}
               />
-              <span style={{ fontFamily: "Geist", fontSize: "16px", color: WHITE }}>
+              <span style={{ fontFamily: "Geist", fontSize: "16px", color: TEXT }}>
                 {p.name}
               </span>
-              <span style={{ fontFamily: "Geist", fontSize: "16px", color: GRAY }}>
+              <span style={{ fontFamily: "Geist", fontSize: "16px", color: MUTED }}>
                 {p.pct}%
               </span>
             </div>
@@ -248,7 +251,7 @@ export function AnomalyTemplate({
           style={{
             fontFamily: "Geist",
             fontSize: "18px",
-            color: GRAY,
+            color: MUTED,
             textTransform: "uppercase",
             letterSpacing: "0.08em",
           }}
@@ -260,7 +263,7 @@ export function AnomalyTemplate({
             fontFamily: "EB Garamond",
             fontSize: "52px",
             fontWeight: 700,
-            color: WHITE,
+            color: TEXT,
             lineHeight: "1.1",
           }}
         >
@@ -309,7 +312,7 @@ export function SectionDetailTemplate({
             style={{
               fontFamily: "Geist",
               fontSize: "18px",
-              color: GRAY,
+              color: MUTED,
               textTransform: "uppercase",
               letterSpacing: "0.08em",
             }}
@@ -321,14 +324,14 @@ export function SectionDetailTemplate({
               fontFamily: "EB Garamond",
               fontSize: "56px",
               fontWeight: 700,
-              color: WHITE,
+              color: TEXT,
               lineHeight: "1.1",
             }}
           >
             {section.section_code}
           </span>
           {section.settlement_name && (
-            <span style={{ fontFamily: "Geist", fontSize: "22px", color: GRAY }}>
+            <span style={{ fontFamily: "Geist", fontSize: "22px", color: MUTED }}>
               {section.settlement_name}
               {section.address ? ` — ${section.address}` : ""}
             </span>
@@ -397,7 +400,7 @@ export function PersistenceTemplate({
           style={{
             fontFamily: "Geist",
             fontSize: "18px",
-            color: GRAY,
+            color: MUTED,
             textTransform: "uppercase",
             letterSpacing: "0.08em",
           }}
@@ -409,18 +412,158 @@ export function PersistenceTemplate({
             fontFamily: "EB Garamond",
             fontSize: "52px",
             fontWeight: 700,
-            color: WHITE,
+            color: TEXT,
             lineHeight: "1.1",
           }}
         >
           Повтарящи се аномалии
         </span>
-        <span style={{ fontFamily: "Geist", fontSize: "22px", color: GRAY }}>
+        <span style={{ fontFamily: "Geist", fontSize: "22px", color: MUTED }}>
           Секции с аномалии в поне 2 избора
         </span>
         <div style={{ display: "flex", gap: "16px", marginTop: "8px" }}>
           <Stat label="Общо секции" value={summary.total_sections.toLocaleString("bg-BG")} />
           <Stat label="Системни" value={summary.total_persistent.toLocaleString("bg-BG")} />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ─── Contextual results (municipality selected) ───
+
+export function ResultsContextTemplate({
+  election,
+  municipality,
+  parties,
+  highlightParty,
+  mapDataUri,
+}: {
+  election: OgElection;
+  municipality: OgMunicipality | null;
+  parties: OgTopParty[];
+  highlightParty?: string | null;
+  mapDataUri?: string | null;
+}) {
+  const scope = municipality ? municipality.name : "Национални резултати";
+  return (
+    <Card>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <Logo />
+        <span
+          style={{
+            fontFamily: "Geist",
+            fontSize: "16px",
+            color: MUTED,
+          }}
+        >
+          karta.izborenmonitor.com
+        </span>
+      </div>
+      <div
+        style={{
+          display: "flex",
+          flex: 1,
+          gap: "32px",
+          alignItems: "center",
+        }}
+      >
+        {/* Left: map */}
+        {mapDataUri && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "480px",
+              flexShrink: 0,
+            }}
+          >
+            <img
+              src={mapDataUri}
+              width={460}
+              height={280}
+              style={{ objectFit: "contain" }}
+            />
+          </div>
+        )}
+        {/* Right: text + bars */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            flex: 1,
+            justifyContent: "center",
+            gap: "16px",
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <span
+              style={{
+                fontFamily: "Geist",
+                fontSize: "16px",
+                color: MUTED,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+              }}
+            >
+              {scope}
+            </span>
+            <span
+              style={{
+                fontFamily: "EB Garamond",
+                fontSize: "36px",
+                fontWeight: 700,
+                color: TEXT,
+                lineHeight: "1.15",
+              }}
+            >
+              {election.name}
+            </span>
+          </div>
+          {/* Party bars — scale to the largest entry (often non-voters) */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+            {parties.map((p) => {
+              const isHighlighted = highlightParty && p.name.toLowerCase() === highlightParty.toLowerCase();
+              const maxPct = Math.max(...parties.map((pp) => pp.pct), 1);
+              const maxBar = mapDataUri ? 220 : 360;
+              const barWidth = Math.max(24, (p.pct / maxPct) * maxBar);
+              return (
+                <div
+                  key={p.name}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    opacity: highlightParty && !isHighlighted ? 0.2 : 1,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      width: `${barWidth}px`,
+                      height: "22px",
+                      backgroundColor: p.color,
+                      borderRadius: "3px",
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontFamily: "Geist",
+                      fontSize: "13px",
+                      fontWeight: isHighlighted ? 700 : 400,
+                      color: TEXT,
+                    }}
+                  >
+                    {p.name}
+                  </span>
+                  <span style={{ fontFamily: "Geist", fontSize: "13px", color: MUTED }}>
+                    {p.pct}%
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </Card>
@@ -446,7 +589,7 @@ export function DistrictTemplate({ district }: { district: OgDistrict }) {
           style={{
             fontFamily: "Geist",
             fontSize: "18px",
-            color: GRAY,
+            color: MUTED,
             textTransform: "uppercase",
             letterSpacing: "0.08em",
           }}
@@ -458,7 +601,7 @@ export function DistrictTemplate({ district }: { district: OgDistrict }) {
             fontFamily: "EB Garamond",
             fontSize: "56px",
             fontWeight: 700,
-            color: WHITE,
+            color: TEXT,
             lineHeight: "1.1",
           }}
         >

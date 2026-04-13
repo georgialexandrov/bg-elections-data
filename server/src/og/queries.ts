@@ -34,28 +34,158 @@ export interface OgTopParty {
   pct: number;
 }
 
+const PARTY_THRESHOLD_PCT = 3.5;
+
+/**
+ * Parties as share of registered voters (includes non-voters and null votes).
+ * Returns all parties above 3.5% threshold, plus "Не подкрепям никого" and "Негласували".
+ */
 export function getOgTopParties(
   db: DatabaseType,
   electionId: number,
-  limit = 5,
+  showNonVoters = true,
 ): OgTopParty[] {
-  return db
+  const totals = db
+    .prepare(
+      `SELECT COALESCE(SUM(p.registered_voters), 0) AS registered,
+              COALESCE(SUM(p.actual_voters), 0) AS actual,
+              COALESCE(SUM(p.null_votes), 0) AS null_votes
+         FROM protocols p WHERE p.election_id = ?`,
+    )
+    .get(electionId) as { registered: number; actual: number; null_votes: number };
+
+  // Denominator: registered voters (with non-voters) or total votes cast (without)
+  const denom = showNonVoters ? (totals.registered || 1) : (totals.actual || 1);
+
+  const allParties = db
     .prepare(
       `SELECT ep.name_on_ballot AS name,
               COALESCE(p.color, '#888888') AS color,
               SUM(v.total) AS votes,
-              ROUND(100.0 * SUM(v.total) / NULLIF(
-                (SELECT SUM(v2.total) FROM votes v2 WHERE v2.election_id = ?), 0
-              ), 1) AS pct
+              ROUND(100.0 * SUM(v.total) / ?, 1) AS pct
          FROM votes v
          JOIN election_parties ep ON ep.election_id = v.election_id AND ep.ballot_number = v.party_number
          JOIN parties p ON p.id = ep.party_id
         WHERE v.election_id = ?
         GROUP BY v.party_number
-        ORDER BY votes DESC
-        LIMIT ?`,
+        ORDER BY votes DESC`,
     )
-    .all(electionId, electionId, limit) as OgTopParty[];
+    .all(denom, electionId) as OgTopParty[];
+
+  const parties = allParties.filter((p) => p.pct >= PARTY_THRESHOLD_PCT);
+
+  // Null votes
+  if (totals.null_votes > 0) {
+    const pct = Math.round((1000 * totals.null_votes) / denom) / 10;
+    if (pct >= 1) {
+      parties.push({ name: "Не подкрепям никого", color: "#a3a3a3", votes: totals.null_votes, pct });
+    }
+  }
+
+  // Non-voters (only when showNonVoters)
+  if (showNonVoters) {
+    const nonVoters = totals.registered - totals.actual;
+    if (nonVoters > 0) {
+      parties.push({ name: "Негласували", color: "#d4d4d4", votes: nonVoters, pct: Math.round((1000 * nonVoters) / denom) / 10 });
+    }
+  }
+
+  parties.sort((a, b) => b.pct - a.pct);
+  return parties;
+}
+
+export interface OgMunicipality {
+  id: number;
+  name: string;
+  registered_voters: number;
+  actual_voters: number;
+}
+
+export function getOgMunicipality(
+  db: DatabaseType,
+  municipalityId: number,
+  electionId?: number,
+): OgMunicipality | null {
+  if (!electionId) {
+    return (
+      (db
+        .prepare(`SELECT id, name, 0 AS registered_voters, 0 AS actual_voters FROM municipalities WHERE id = ?`)
+        .get(municipalityId) as OgMunicipality | undefined) ?? null
+    );
+  }
+  return (
+    (db
+      .prepare(
+        `SELECT m.id, m.name,
+                COALESCE(SUM(p.registered_voters), 0) AS registered_voters,
+                COALESCE(SUM(p.actual_voters), 0) AS actual_voters
+           FROM municipalities m
+           JOIN locations l ON l.municipality_id = m.id
+           JOIN sections s ON s.location_id = l.id AND s.election_id = ?
+           LEFT JOIN protocols p ON p.election_id = s.election_id AND p.section_code = s.section_code
+          WHERE m.id = ?
+          GROUP BY m.id`,
+      )
+      .get(electionId, municipalityId) as OgMunicipality | undefined) ?? null
+  );
+}
+
+/** Parties for a municipality, as share of registered voters, plus null votes and non-voters. */
+export function getOgMunicipalityParties(
+  db: DatabaseType,
+  electionId: number,
+  municipalityId: number,
+  showNonVoters = true,
+): OgTopParty[] {
+  const totals = db
+    .prepare(
+      `SELECT COALESCE(SUM(p.registered_voters), 0) AS registered,
+              COALESCE(SUM(p.actual_voters), 0) AS actual,
+              COALESCE(SUM(p.null_votes), 0) AS null_votes
+         FROM protocols p
+         JOIN sections s ON s.election_id = p.election_id AND s.section_code = p.section_code
+         JOIN locations l ON l.id = s.location_id
+        WHERE p.election_id = ? AND l.municipality_id = ?`,
+    )
+    .get(electionId, municipalityId) as { registered: number; actual: number; null_votes: number };
+
+  const denom = showNonVoters ? (totals.registered || 1) : (totals.actual || 1);
+
+  const allParties = db
+    .prepare(
+      `SELECT ep.name_on_ballot AS name,
+              COALESCE(pa.color, '#888888') AS color,
+              SUM(v.total) AS votes,
+              ROUND(100.0 * SUM(v.total) / ?, 1) AS pct
+         FROM votes v
+         JOIN sections s ON s.election_id = v.election_id AND s.section_code = v.section_code
+         JOIN locations l ON l.id = s.location_id
+         JOIN election_parties ep ON ep.election_id = v.election_id AND ep.ballot_number = v.party_number
+         JOIN parties pa ON pa.id = ep.party_id
+        WHERE v.election_id = ? AND l.municipality_id = ?
+        GROUP BY v.party_number
+        ORDER BY votes DESC`,
+    )
+    .all(denom, electionId, municipalityId) as OgTopParty[];
+
+  const parties = allParties.filter((p) => p.pct >= PARTY_THRESHOLD_PCT);
+
+  if (totals.null_votes > 0) {
+    const pct = Math.round((1000 * totals.null_votes) / denom) / 10;
+    if (pct >= 1) {
+      parties.push({ name: "Не подкрепям никого", color: "#a3a3a3", votes: totals.null_votes, pct });
+    }
+  }
+
+  if (showNonVoters) {
+    const nonVoters = totals.registered - totals.actual;
+    if (nonVoters > 0) {
+      parties.push({ name: "Негласували", color: "#d4d4d4", votes: nonVoters, pct: Math.round((1000 * nonVoters) / denom) / 10 });
+    }
+  }
+
+  parties.sort((a, b) => b.pct - a.pct);
+  return parties;
 }
 
 export interface OgSectionDetail {

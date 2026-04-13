@@ -2,10 +2,13 @@ import { Hono } from "hono";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import getDb from "../db.js";
-import { renderOgImage } from "./render.js";
+import { renderOgImage, svgToPngDataUri } from "./render.js";
+import { renderMapSvg } from "./map-svg.js";
 import {
   getOgElection,
   getOgTopParties,
+  getOgMunicipality,
+  getOgMunicipalityParties,
   getOgSectionDetail,
   getOgSectionRiskHistory,
   getOgDistrict,
@@ -13,7 +16,7 @@ import {
 } from "./queries.js";
 import {
   LandingTemplate,
-  ElectionResultsTemplate,
+  ResultsContextTemplate,
   AnomalyTemplate,
   SectionDetailTemplate,
   PersistenceTemplate,
@@ -61,15 +64,72 @@ og.get("/landing.png", async () => {
   return servePng("landing", () => renderOgImage(LandingTemplate()));
 });
 
-// GET /og/election/:id/results.png
+// GET /og/election/:id/results.png?region=123&party=ГЕРБ-СДС
 og.get("/election/:id/results.png", async (c) => {
   const db = getDb();
   const id = Number(c.req.param("id"));
   const election = getOgElection(db, id);
   if (!election) return c.text("Not found", 404);
-  const parties = getOgTopParties(db, id);
-  return servePng(`election-${id}-results`, () =>
-    renderOgImage(ElectionResultsTemplate({ election, parties })),
+
+  const regionParam = c.req.query("region");
+  const partyParam = c.req.query("party");
+  const nonVotersParam = c.req.query("nonVoters");
+  const regionId = regionParam ? Number(regionParam) : null;
+  const showNonVoters = nonVotersParam !== "0";
+  const nvKey = showNonVoters ? "" : "-nv0";
+
+  // Resolve highlighted party → color for map tile dimming
+  // SQLite LOWER() doesn't handle Cyrillic, so we match in JS
+  let highlightColor: string | null = null;
+  if (partyParam) {
+    const rows = db
+      .prepare(
+        `SELECT ep.name_on_ballot AS name, COALESCE(p.color, '#888888') AS color
+           FROM election_parties ep
+           JOIN parties p ON p.id = ep.party_id
+          WHERE ep.election_id = ?`,
+      )
+      .all(id) as { name: string; color: string }[];
+    const needle = partyParam.toLowerCase();
+    const match = rows.find((r) => r.name.toLowerCase() === needle);
+    highlightColor = match?.color ?? null;
+  }
+
+  // Contextual image: municipality selected — zoomed map of just that municipality
+  if (regionId) {
+    const municipality = getOgMunicipality(db, regionId, id);
+    const parties = getOgMunicipalityParties(db, id, regionId, showNonVoters);
+    const mapSvg = renderMapSvg(db, id, regionId, highlightColor);
+    const mapDataUri = svgToPngDataUri(mapSvg, 920);
+    const cacheKey = `election-${id}-results-r${regionId}${nvKey}${partyParam ? `-p${partyParam}` : ""}`;
+    return servePng(cacheKey, () =>
+      renderOgImage(
+        ResultsContextTemplate({
+          election,
+          municipality,
+          parties,
+          highlightParty: partyParam || null,
+          mapDataUri,
+        }),
+      ),
+    );
+  }
+
+  // Default: national results — full Bulgaria map
+  const mapSvg = renderMapSvg(db, id, null, highlightColor);
+  const mapDataUri = svgToPngDataUri(mapSvg, 920);
+  const parties = getOgTopParties(db, id, showNonVoters);
+  const cacheKey = `election-${id}-results${nvKey}${partyParam ? `-p${partyParam}` : ""}`;
+  return servePng(cacheKey, () =>
+    renderOgImage(
+      ResultsContextTemplate({
+        election,
+        municipality: null,
+        parties,
+        highlightParty: partyParam || null,
+        mapDataUri,
+      }),
+    ),
   );
 });
 
@@ -95,12 +155,10 @@ og.get("/election/:id/table.png", async (c) => {
   );
 });
 
-// GET /og/section/:code.png
-og.get("/section/:code.png", async (c) => {
+// GET /og/section/:code
+og.get("/section/:code", async (c) => {
   const db = getDb();
-  const code = c.req.param("code");
-  // Strip .png suffix if it got appended to the param
-  const sectionCode = code.replace(/\.png$/, "");
+  const sectionCode = c.req.param("code").replace(/\.png$/, "");
   const section = getOgSectionDetail(db, sectionCode);
   if (!section) return c.text("Not found", 404);
   const history = getOgSectionRiskHistory(db, sectionCode);
@@ -118,10 +176,10 @@ og.get("/persistence.png", async () => {
   );
 });
 
-// GET /og/district/:id.png
-og.get("/district/:id.png", async (c) => {
+// GET /og/district/:id
+og.get("/district/:id", async (c) => {
   const db = getDb();
-  const id = Number(c.req.param("id"));
+  const id = Number(c.req.param("id").replace(/\.png$/, ""));
   const district = getOgDistrict(db, id);
   if (!district) return c.text("Not found", 404);
   return servePng(`district-${id}`, () =>

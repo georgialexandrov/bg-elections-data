@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import getDb from "../db.js";
 import { getElection } from "../lib/get-election.js";
-import { getOgSectionDetail } from "./queries.js";
+import { getOgSectionDetail, getOgMunicipality } from "./queries.js";
 
 const BOT_UA =
   /facebookexternalhit|Twitterbot|LinkedInBot|Slackbot|Discordbot|TelegramBot|WhatsApp|Viber|Googlebot|bingbot|yandex/i;
@@ -29,7 +29,7 @@ interface OgMeta {
   url: string;
 }
 
-function resolveOgMeta(path: string): OgMeta | null {
+function resolveOgMeta(path: string, searchParams: URLSearchParams): OgMeta | null {
   const db = getDb();
 
   // Landing
@@ -43,16 +43,34 @@ function resolveOgMeta(path: string): OgMeta | null {
     };
   }
 
-  // Election results: /:id/results
+  // Election results: /:id/results?region=X&party=Y
   let match = path.match(/^\/(\d+)\/results\/?$/);
   if (match) {
     const election = getElection(db, Number(match[1]));
     if (!election) return null;
+
+    const regionParam = searchParams.get("region");
+    const regionId = regionParam ? Number(regionParam) : null;
+    const municipality = regionId ? getOgMunicipality(db, regionId) : null;
+
+    // Build contextual title/description
+    const title = `${election.name} — Резултати ${municipality ? `за ${municipality.name}` : "по райони"}`;
+    const description = municipality
+      ? `Резултати от ${election.name} за община ${municipality.name}. Карта с пропорционално разпределение.`
+      : `Карта на резултатите от ${election.name}. Пропорционално разпределение по райони.`;
+
+    // Forward query params to the OG image URL
+    const imgParams = new URLSearchParams();
+    if (regionId) imgParams.set("region", String(regionId));
+    const partyParam = searchParams.get("party");
+    if (partyParam) imgParams.set("party", partyParam);
+    const qs = imgParams.toString();
+
     return {
-      title: `${election.name} — Резултати по райони`,
-      description: `Карта на резултатите от ${election.name}. Пропорционално разпределение по райони.`,
-      image: `${BASE_URL}/og/election/${election.id}/results.png`,
-      url: `${BASE_URL}/${election.id}/results`,
+      title,
+      description,
+      image: `${BASE_URL}/og/election/${election.id}/results.png${qs ? `?${qs}` : ""}`,
+      url: `${BASE_URL}/${election.id}/results${qs ? `?${qs}` : ""}`,
     };
   }
 
@@ -173,12 +191,13 @@ export async function botMetaMiddleware(c: Context, next: Next) {
   if (!BOT_UA.test(ua)) return next();
 
   // Only intercept HTML page requests, not API/assets
-  const path = new URL(c.req.url).pathname;
+  const url = new URL(c.req.url);
+  const path = url.pathname;
   if (path.startsWith("/api/") || path.startsWith("/og/") || path.startsWith("/assets/")) {
     return next();
   }
 
-  const meta = resolveOgMeta(path);
+  const meta = resolveOgMeta(path, url.searchParams);
   if (!meta) return next();
 
   const html = injectMeta(getIndexHtml(), meta);

@@ -31,3 +31,6 @@ dist/
 
 # Temp parser DBs
 /tmp/elections_*.db
+
+# OG image cache (generated on demand)
+og-cache/

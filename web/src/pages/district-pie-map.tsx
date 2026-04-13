@@ -766,9 +766,18 @@ export default function DistrictPieMap() {
   const tab: "bg" | "abroad" =
     searchParams.get("tab") === "abroad" ? "abroad" : "bg";
 
-  const [showNonVoters, setShowNonVoters] = useState(true);
+  // Read initial state from URL params for shareable links
+  const initialRegionId = searchParams.get("region");
+  const initialNonVoters = searchParams.get("nonVoters");
+
+  const [showNonVoters, setShowNonVoters] = useState(
+    initialNonVoters === "0" ? false : true,
+  );
   const [geoLevel] = useState<GeoLevel>("municipalities");
   const [selectedRegion, setSelectedRegion] = useState<GeoRegion | null>(null);
+  const [pendingRegionId] = useState<number | null>(
+    initialRegionId ? Number(initialRegionId) : null,
+  );
   const [selectedIsoCountry, setSelectedIsoCountry] = useState<string | null>(
     null,
   );
@@ -808,6 +817,29 @@ export default function DistrictPieMap() {
     () => new globalThis.Map(regions.map((r) => [r.id, r])),
     [regions],
   );
+
+  // Restore region selection from URL param once data loads
+  useEffect(() => {
+    if (pendingRegionId != null && regions.length > 0 && !selectedRegion) {
+      const region = regionMap.get(pendingRegionId);
+      if (region) setSelectedRegion(region);
+    }
+  }, [pendingRegionId, regions, regionMap, selectedRegion]);
+
+  // Sync selection state back to URL for sharing
+  useEffect(() => {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (selectedRegion) params.set("region", String(selectedRegion.id));
+        else params.delete("region");
+        if (!showNonVoters) params.set("nonVoters", "0");
+        else params.delete("nonVoters");
+        return params;
+      },
+      { replace: true },
+    );
+  }, [selectedRegion, showNonVoters, setSearchParams]);
 
   const hoveredRegion = useMemo(
     () => (hoveredRegionId != null ? regionMap.get(hoveredRegionId) ?? null : null),
