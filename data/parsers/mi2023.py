@@ -26,12 +26,12 @@ from parsers.common import (
 
 ELECTIONS = [
     {"slug": "mi2023_council",          "name": "Общ.съветници 29.10.2023",  "type": "local_council",             "date": "2023-10-29", "round": 1, "rel_path": "mi2023_tur1/data_04"},
-    {"slug": "mi2023_mayor_r1",         "name": "Кмет 29.10.2023",           "type": "local_mayor",               "date": "2023-10-29", "round": 1, "rel_path": "mi2023_tur1/data_02"},
-    {"slug": "mi2023_kmetstvo_r1",      "name": "Кмет кметство 29.10.2023",  "type": "local_mayor_kmetstvo",      "date": "2023-10-29", "round": 1, "rel_path": "mi2023_tur1/data_01"},
-    {"slug": "mi2023_neighbourhood_r1", "name": "Кмет район 29.10.2023",     "type": "local_mayor_neighbourhood", "date": "2023-10-29", "round": 1, "rel_path": "mi2023_tur1/data_03"},
-    {"slug": "mi2023_mayor_r2",         "name": "Кмет 05.11.2023",           "type": "local_mayor",               "date": "2023-11-05", "round": 2, "rel_path": "mi2023_tur2/data_02"},
-    {"slug": "mi2023_kmetstvo_r2",     "name": "Кмет кметство 05.11.2023",  "type": "local_mayor_kmetstvo",      "date": "2023-11-05", "round": 2, "rel_path": "mi2023_tur2/data_01"},
-    {"slug": "mi2023_neighbourhood_r2", "name": "Кмет район 05.11.2023",     "type": "local_mayor_neighbourhood", "date": "2023-11-05", "round": 2, "rel_path": "mi2023_tur2/data_03"},
+    {"slug": "mi2023_mayor_r1",         "name": "Кмет 29.10.2023 (първи тур)",           "type": "local_mayor",               "date": "2023-10-29", "round": 1, "rel_path": "mi2023_tur1/data_02"},
+    {"slug": "mi2023_kmetstvo_r1",      "name": "Кмет кметство 29.10.2023 (първи тур)",  "type": "local_mayor_kmetstvo",      "date": "2023-10-29", "round": 1, "rel_path": "mi2023_tur1/data_01"},
+    {"slug": "mi2023_neighbourhood_r1", "name": "Кмет район 29.10.2023 (първи тур)",     "type": "local_mayor_neighbourhood", "date": "2023-10-29", "round": 1, "rel_path": "mi2023_tur1/data_03"},
+    {"slug": "mi2023_mayor_r2",         "name": "Кмет 05.11.2023 (втори тур)",           "type": "local_mayor",               "date": "2023-11-05", "round": 2, "rel_path": "mi2023_tur2/data_02"},
+    {"slug": "mi2023_kmetstvo_r2",     "name": "Кмет кметство 05.11.2023 (втори тур)",  "type": "local_mayor_kmetstvo",      "date": "2023-11-05", "round": 2, "rel_path": "mi2023_tur2/data_01"},
+    {"slug": "mi2023_neighbourhood_r2", "name": "Кмет район 05.11.2023 (втори тур)",     "type": "local_mayor_neighbourhood", "date": "2023-11-05", "round": 2, "rel_path": "mi2023_tur2/data_03"},
 ]
 
 

@@ -4,7 +4,7 @@ pe202410.py — Parser for the October 2024 parliamentary elections.
 
 Two elections from the same directory structure:
   pe202410     — Народно събрание 27.10.2024 (standard results)
-  pe202410_ks  — Народно събрание 27.10.2024 (КС) (after Constitutional Court decision)
+  pe202410_ks  — Народно събрание 27.10.2024 (след касиране)
 
 Source: results.cik.bg
 Readme: pe202410/Актуализирана база данни/readme_27.10.2024.txt
@@ -41,7 +41,7 @@ ELECTIONS = [
     },
     {
         "slug":    "pe202410_ks",
-        "name":    "Народно събрание 27.10.2024 (КС)",
+        "name":    "Народно събрание 27.10.2024 (след касиране)",
         "type":    "parliament",
         "date":    "2024-10-27",
         "round":   1,

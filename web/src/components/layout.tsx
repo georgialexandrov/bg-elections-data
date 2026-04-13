@@ -83,7 +83,6 @@ export default function Layout() {
               {elections.map((e) => (
                 <SelectItem key={e.id} value={String(e.id)}>
                   <span className="truncate">{e.name}</span>
-                  <span className="ml-1 shrink-0 text-muted-foreground">({e.date})</span>
                 </SelectItem>
               ))}
             </SelectContent>

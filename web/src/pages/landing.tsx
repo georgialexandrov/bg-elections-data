@@ -40,7 +40,16 @@ export default function Landing() {
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground md:text-base">
             Официалните данни на ЦИК, лесни за справка. Изберете област
-            или потърсете секция.
+            или потърсете секция.{" "}
+            <a
+              href="https://www.grao.bg/elections/Secure/Public/EgnSearch.cshtml"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-foreground underline underline-offset-2 transition-colors hover:text-[#ce463c]"
+            >
+              Проверете коя е Вашата секция
+            </a>
+            .
           </p>
           <a
             href="#about"

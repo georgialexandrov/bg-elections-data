@@ -185,6 +185,26 @@ def create_view(conn: sqlite3.Connection) -> None:
     """)
 
 
+def rename_elections(conn: sqlite3.Connection) -> None:
+    """Make election names normie-friendly: spell out КС, add 'втори тур'."""
+    step("election names: spell out abbreviations, add round labels")
+    renames = [
+        ("pe202410_ks",             "Народно събрание 27.10.2024 (след касиране)"),
+        ("mi2023_mayor_r1",         "Кмет 29.10.2023 (първи тур)"),
+        ("mi2023_kmetstvo_r1",      "Кмет кметство 29.10.2023 (първи тур)"),
+        ("mi2023_neighbourhood_r1", "Кмет район 29.10.2023 (първи тур)"),
+        ("mi2023_mayor_r2",         "Кмет 05.11.2023 (втори тур)"),
+        ("mi2023_kmetstvo_r2",      "Кмет кметство 05.11.2023 (втори тур)"),
+        ("mi2023_neighbourhood_r2", "Кмет район 05.11.2023 (втори тур)"),
+        ("pvrns2021_pvr_r1",        "Президент 14.11.2021 (първи тур)"),
+        ("pvrns2021_pvr_r2",        "Президент 21.11.2021 (втори тур)"),
+    ]
+    for slug, name in renames:
+        conn.execute("UPDATE elections SET name = ? WHERE slug = ?", (name, slug))
+    conn.commit()
+    print(f"  renamed {len(renames)} elections")
+
+
 def ensure_indexes(conn: sqlite3.Connection) -> None:
     """Create all performance indexes. Safe to re-run — uses IF NOT EXISTS."""
     step("performance indexes")
@@ -284,6 +304,7 @@ def main() -> None:
     if has_scores:
         create_view(conn)
 
+    rename_elections(conn)
     ensure_indexes(conn)
     vacuum(conn)
     conn.close()
