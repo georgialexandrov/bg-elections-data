@@ -22,6 +22,7 @@ jobs:
             pnpm install --frozen-lockfile
             SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }} pnpm --filter web build
             rm -rf /opt/elections/og-cache/*
-            sudo rm -rf /var/cache/nginx/*
             sudo systemctl restart elections-api
-            sudo nginx -s reload
+            # Purge nginx cache — requires sudoers entry for elections user:
+            # elections ALL=(ALL) NOPASSWD: /bin/rm -rf /var/cache/nginx/*, /usr/sbin/nginx -s reload
+            sudo /bin/rm -rf /var/cache/nginx/* && sudo /usr/sbin/nginx -s reload || true
