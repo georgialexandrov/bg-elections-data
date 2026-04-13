@@ -21,4 +21,7 @@ jobs:
             git pull origin main
             pnpm install --frozen-lockfile
             SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }} pnpm --filter web build
+            rm -rf /opt/elections/og-cache/*
+            sudo rm -rf /var/cache/nginx/*
             sudo systemctl restart elections-api
+            sudo nginx -s reload
