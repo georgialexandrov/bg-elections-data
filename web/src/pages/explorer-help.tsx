@@ -1,4 +1,4 @@
-import { ExternalLink, Download, MessageSquare, Database, Sparkles, FolderOpen } from "lucide-react";
+import { ExternalLink, Download, MessageSquare, Database, Sparkles, FolderOpen, Plug } from "lucide-react";
 import AppFooter from "@/components/app-footer.js";
 
 const GITHUB_URL = "https://github.com/datasciencesociety/elections";
@@ -6,6 +6,7 @@ const GITHUB_BRANCH_URL = `${GITHUB_URL}/tree/feature/web-visualize`;
 const ZIP_URL = `${GITHUB_URL}/releases/latest/download/elections-explorer.zip`;
 const DB_URL = `${GITHUB_URL}/releases/latest/download/elections.db`;
 const CLAUDE_DESKTOP_URL = "https://claude.ai/download";
+const MCP_URL = "https://karta.izborenmonitor.com/mcp";
 
 const EXAMPLE_PROMPTS = [
   "Покажи ми резултатите от последните парламентарни избори на карта по общини.",
@@ -37,14 +38,13 @@ export default function ExplorerHelp() {
           директно от данните. Не е нужно да програмираш.
         </p>
         <p className="mt-2 text-sm text-muted-foreground leading-relaxed max-w-xl">
-          Използваме{" "}
-          <a href="https://claude.ai" target="_blank" rel="noopener noreferrer" className="text-[#ce463c] hover:underline">
-            Claude
+          Данните работят с всеки AI асистент, който поддържа MCP или може да чете SQLite.
+          По-долу показваме два начина: с локална база данни (най-лесно чрез{" "}
+          <a href="https://claude.ai/download" target="_blank" rel="noopener noreferrer" className="text-[#ce463c] hover:underline">
+            Claude Desktop Cowork
             <ExternalLink size={10} className="mb-0.5 ml-0.5 inline" />
-          </a>{" "}
-          на Anthropic. Claude е AI асистент, който може да чете базата данни, да пише заявки
-          и да генерира визуализации по ваше описание. Приложението му за десктоп (Claude Desktop)
-          има режим Cowork, в който работи директно с файлове на компютъра ви.
+          </a>) или чрез MCP сървър, който работи с Claude Desktop, ChatGPT, pi-mono, OpenCode, Cursor
+          и други клиенти.
         </p>
 
         {/* Screenshot */}
@@ -60,7 +60,7 @@ export default function ExplorerHelp() {
         </p>
 
         {/* Steps */}
-        <h2 className="mt-10 font-display text-lg font-semibold">Как да започнете</h2>
+        <h2 className="mt-10 font-display text-lg font-semibold">Най-лесният начин: Claude Desktop Cowork</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Три стъпки. Всичко става с кликване, не е нужен терминал или програмиране.
         </p>
@@ -145,13 +145,86 @@ export default function ExplorerHelp() {
           </Step>
         </ol>
 
+        {/* MCP */}
+        <h2 className="mt-10 font-display text-lg font-semibold">
+          <Plug size={16} className="mr-1.5 inline text-muted-foreground" />
+          Алтернатива: MCP
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
+          Ако не искате да сваляте файлове, можете да свържете AI асистента си директно
+          към нашия сървър чрез{" "}
+          <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer" className="text-[#ce463c] hover:underline">
+            Model Context Protocol (MCP)
+            <ExternalLink size={10} className="mb-0.5 ml-0.5 inline" />
+          </a>.
+          Данните се четат от сървъра в реално време — нищо не се инсталира локално.
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          MCP работи с Claude Desktop, ChatGPT, pi-mono, OpenCode, Cursor и други клиенти, които поддържат протокола.
+        </p>
+
+        <div className="mt-4 rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm">
+          <p className="font-medium text-foreground">Адрес на MCP сървъра</p>
+          <code className="mt-1.5 block rounded bg-muted px-3 py-2 text-xs font-mono select-all">
+            {MCP_URL}
+          </code>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Транспорт: <strong>Streamable HTTP</strong>. Без аутентикация.
+          </p>
+        </div>
+
+        <div className="mt-4 rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm">
+          <p className="font-medium text-foreground">Настройка в Claude Desktop</p>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            Settings → MCP Servers → Add → Streamable HTTP → поставете адреса отгоре.
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Или добавете в <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono">claude_desktop_config.json</code>:
+          </p>
+          <pre className="mt-2 overflow-x-auto rounded bg-[#1a1a1a] px-3 py-2 text-xs font-mono text-gray-300 select-all">{`{
+  "mcpServers": {
+    "bg-elections": {
+      "type": "streamableHttp",
+      "url": "${MCP_URL}"
+    }
+  }
+}`}</pre>
+        </div>
+
+        <div className="mt-4 rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm">
+          <p className="font-medium text-foreground">Настройка в ChatGPT</p>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            Включете Developer Mode от Settings → Developer. След това: Settings → Connectors → Create.
+            Въведете име (напр. „Български избори") и поставете адреса на MCP сървъра.
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Подробни инструкции:{" "}
+            <a href="https://help.openai.com/en/articles/12584461-developer-mode-apps-and-full-mcp-connectors-in-chatgpt-beta" target="_blank" rel="noopener noreferrer" className="text-[#ce463c] hover:underline">
+              OpenAI Help Center
+              <ExternalLink size={10} className="mb-0.5 ml-0.5 inline" />
+            </a>
+          </p>
+        </div>
+
+        <div className="mt-4 rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm">
+          <p className="font-medium text-foreground">Препоръчителен system prompt</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Добавете тези редове в инструкциите на проекта, за да ориентирате модела:
+          </p>
+          <pre className="mt-2 overflow-x-auto rounded bg-[#1a1a1a] px-3 py-2 text-xs font-mono text-gray-300 select-all whitespace-pre-wrap">{`Имаш достъп до MCP сървър с данни от 18 български избора (2021–2024): парламентарни, президентски, европейски, местни. Данните са от ЦИК и са валидирани.
+
+Използвай list_elections за списък на изборите и техните ID-та. След това използвай get_anomalies, get_election_results, compare_elections, get_turnout и другите инструменти, за да анализираш данните.
+
+Отговаряй на български, освен ако потребителят пише на друг език.`}</pre>
+        </div>
+
         {/* Example prompts */}
         <h2 className="mt-10 font-display text-lg font-semibold">
           <MessageSquare size={16} className="mr-1.5 inline text-muted-foreground" />
           Примерни въпроси
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Копирайте директно или питайте със свои думи. Claude разбира контекста.
+          Копирайте директно или питайте със свои думи.
         </p>
         <ul className="mt-3 space-y-2">
           {EXAMPLE_PROMPTS.map((p) => (

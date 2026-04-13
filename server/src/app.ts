@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import elections from "./routes/elections.js";
 import geography from "./routes/geography.js";
 import parties from "./routes/parties.js";
+import { handleMcpRequest } from "./mcp/handler.js";
 
 const app = new Hono();
 
@@ -20,5 +21,10 @@ app.route("/api/elections", elections);
 app.route("/api/geography", geography);
 // Hidden for now — not ready for public release
 // app.route("/api/parties", parties);
+
+// MCP endpoint — stateless, tools call back into /api/* via HTTP (nginx-cached)
+app.all("/mcp", async (c) => {
+  return handleMcpRequest(c.req.raw);
+});
 
 export default app;

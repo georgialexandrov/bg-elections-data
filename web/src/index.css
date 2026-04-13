@@ -1,8 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
-@import "@fontsource-variable/eb-garamond";
 @import "@fontsource/source-code-pro/400.css";
 @import "@fontsource/source-code-pro/500.css";
 @import "@fontsource/source-code-pro/600.css";
@@ -10,8 +8,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-    --font-display: 'EB Garamond Variable', 'Georgia', serif;
-    --font-sans: 'Geist Variable', system-ui, sans-serif;
+    --font-display: 'Cormorant Infant', 'Georgia', serif;
+    --font-sans: 'Sofia Sans', system-ui, sans-serif;
     --font-mono: 'Source Code Pro', 'Menlo', monospace;
     --font-heading: var(--font-display);
     --color-sidebar-ring: var(--sidebar-ring);
@@ -134,7 +132,8 @@
   }
   html {
     @apply font-sans;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    font-feature-settings: "locl";
+    font-language-override: "BGR";
   }
 
   /* Editorial heading style */
