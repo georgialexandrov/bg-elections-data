@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router";
+import { useLocation } from "react-router";
 
 /**
  * Compact footer strip that sits at the bottom of every page (via Layout).
@@ -49,13 +49,6 @@ export default function AppFooter() {
         >
           Проверете секцията си (ГРАО)
         </a>
-        <span className="text-muted-foreground/40">·</span>
-        <Link
-          to="/help/explorer"
-          className="transition-colors hover:text-foreground"
-        >
-          Изследвай с изкуствен интелект
-        </Link>
         <span className="text-muted-foreground/40">·</span>
         <a
           href={GITHUB_URL}

@@ -22,6 +22,7 @@ const NAV_ITEMS = [
 
 const STANDALONE_NAV = [
   { label: "Системни", path: "/persistence" },
+  { label: "Изследвай с AI", path: "/help/explorer" },
 ] as const;
 
 export default function Layout() {
