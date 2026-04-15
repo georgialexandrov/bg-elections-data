@@ -165,10 +165,20 @@ function buildTileFeatures(
 
 function getGridStep(level: GeoLevel): number {
   switch (level) {
-    case "riks": return 0.06;
+    case "riks": return 0.025;
     case "districts": return 0.04;
     case "municipalities": return 0.02;
   }
+}
+
+/** Cheap polygon-size proxy via bbox area. Used to stack smaller regions
+ *  on top of larger ones when their geometries overlap (e.g. Пловдив-град
+ *  sits inside Пловдив-област; the oblast MIR's polygon includes the
+ *  city area, so without z-ordering the city disappears). */
+function bboxArea(r: GeoRegion): number {
+  if (!r.geo) return 0;
+  const [minX, minY, maxX, maxY] = bbox({ type: "Feature", geometry: r.geo, properties: {} });
+  return (maxX - minX) * (maxY - minY);
 }
 
 function computeAllTiles(
@@ -177,8 +187,10 @@ function computeAllTiles(
   level: GeoLevel,
 ): GeoJSON.FeatureCollection {
   const step = getGridStep(level);
+  // Largest bbox first → smallest renders last (on top).
+  const ordered = [...regions].sort((a, b) => bboxArea(b) - bboxArea(a));
   const allFeatures: GeoJSON.Feature[] = [];
-  for (const r of regions) {
+  for (const r of ordered) {
     allFeatures.push(...buildTileFeatures(r, showNonVoters, step));
   }
   return { type: "FeatureCollection", features: allFeatures };
