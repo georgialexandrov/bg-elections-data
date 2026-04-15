@@ -759,10 +759,11 @@ export default function DistrictPieMap() {
   const { electionId } = useParams<{ electionId: string }>();
 
   const [searchParams, setSearchParams] = useSearchParams();
-  // Tab state lives in the URL (`?tab=abroad`) so the Abroad view is
-  // directly shareable. Defaults to "bg" when the param is missing.
-  const tab: "bg" | "abroad" =
-    searchParams.get("tab") === "abroad" ? "abroad" : "bg";
+  // Tab state lives in the URL (`?tab=mir|abroad`) so each view is
+  // directly shareable. Defaults to "bg" (municipalities) when missing.
+  const rawTab = searchParams.get("tab");
+  const tab: "mir" | "bg" | "abroad" =
+    rawTab === "abroad" ? "abroad" : rawTab === "mir" ? "mir" : "bg";
 
   // Read initial state from URL params so shared links preserve context
   const initialRegionId = searchParams.get("region");
@@ -771,7 +772,7 @@ export default function DistrictPieMap() {
   const [showNonVoters, setShowNonVoters] = useState(
     initialNonVoters === "0" ? false : true,
   );
-  const [geoLevel] = useState<GeoLevel>("municipalities");
+  const geoLevel: GeoLevel = tab === "mir" ? "riks" : "municipalities";
   const [selectedRegion, setSelectedRegion] = useState<GeoRegion | null>(null);
   const [pendingRegionId] = useState<number | null>(
     initialRegionId ? Number(initialRegionId) : null,
@@ -1048,14 +1049,14 @@ export default function DistrictPieMap() {
   }, []);
 
   const handleTabChange = useCallback(
-    (next: "bg" | "abroad") => {
+    (next: "mir" | "bg" | "abroad") => {
       if (next === tab) return;
       trackEvent("switch_results_tab", { tab: next, election_id: electionId });
       setSearchParams(
         (prev) => {
           const params = new URLSearchParams(prev);
-          if (next === "abroad") params.set("tab", "abroad");
-          else params.delete("tab");
+          if (next === "bg") params.delete("tab");
+          else params.set("tab", next);
           return params;
         },
         { replace: false },
@@ -1099,18 +1100,29 @@ export default function DistrictPieMap() {
       <div className="relative min-h-0 flex-1">
         {/* Top-left controls — still overlaid on the map */}
         <div className="absolute top-2 left-2 z-10 flex flex-wrap items-center gap-1.5 md:top-3 md:left-3 md:gap-2">
-          {/* Tab switcher — Bulgaria / Abroad */}
+          {/* Tab switcher — МИР / Общини / Чужбина */}
           <div className="inline-flex overflow-hidden rounded-md border bg-background/95 shadow-md backdrop-blur-sm">
             <button
               type="button"
-              onClick={() => handleTabChange("bg")}
+              onClick={() => handleTabChange("mir")}
               className={`px-3 py-2 text-xs transition-colors ${
+                tab === "mir"
+                  ? "bg-foreground text-background"
+                  : "text-foreground hover:bg-muted/40"
+              }`}
+            >
+              МИР
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTabChange("bg")}
+              className={`border-l px-3 py-2 text-xs transition-colors ${
                 tab === "bg"
                   ? "bg-foreground text-background"
                   : "text-foreground hover:bg-muted/40"
               }`}
             >
-              България
+              Общини
             </button>
             <button
               type="button"
@@ -1135,7 +1147,7 @@ export default function DistrictPieMap() {
               <span className="text-xs text-red-600">{error}</span>
             </div>
           )}
-          {tab === "bg" && (
+          {tab !== "abroad" && (
             <label className="flex cursor-pointer items-center gap-1.5 rounded-md border bg-background/95 px-3 py-2 text-xs shadow-md backdrop-blur-sm">
               <input
                 type="checkbox"
@@ -1149,7 +1161,7 @@ export default function DistrictPieMap() {
         </div>
 
         {/* Map — swap full canvas between Bulgaria and world */}
-        {tab === "bg" ? (
+        {tab !== "abroad" ? (
           <MapComponent
             center={BULGARIA_CENTER}
             zoom={BULGARIA_ZOOM}
