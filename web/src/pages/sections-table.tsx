@@ -138,14 +138,30 @@ export default function SectionsTable() {
   const selectedCode = searchParams.get("section") ?? "";
   const expandedCode = searchParams.get("expand") ?? "";
 
-  const setParam = useCallback((key: string, value: string) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      if (value) next.set(key, value);
-      else next.delete(key);
-      return next;
-    }, { replace: true });
-  }, [setSearchParams]);
+  const setParam = useCallback(
+    (key: string, value: string, opts?: { push?: boolean }) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        if (value) next.set(key, value);
+        else next.delete(key);
+        return next;
+      }, { replace: !opts?.push });
+    },
+    [setSearchParams],
+  );
+
+  const toggleSection = useCallback(
+    (code: string) => {
+      const opening = !selectedCode && selectedCode !== code;
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        if (prev.get("section") === code) next.delete("section");
+        else next.set("section", code);
+        return next;
+      }, { replace: !opening });
+    },
+    [setSearchParams, selectedCode],
+  );
 
   const setSort = (col: SortColumn) => {
     setSearchParams((prev) => {
@@ -332,12 +348,7 @@ export default function SectionsTable() {
           {sections.map((s) => (
             <div
               key={s.section_code}
-              onClick={() => setSearchParams((prev) => {
-                const next = new URLSearchParams(prev);
-                if (selectedCode === s.section_code) next.delete("section");
-                else next.set("section", s.section_code);
-                return next;
-              }, { replace: true })}
+              onClick={() => toggleSection(s.section_code)}
               className={`cursor-pointer px-3 py-2.5 transition-colors active:bg-secondary/50 ${
                 selectedCode === s.section_code ? "bg-secondary" : ""
               }`}
@@ -471,12 +482,7 @@ export default function SectionsTable() {
               <>
                 <tr
                   key={s.section_code}
-                  onClick={() => setSearchParams((prev) => {
-                    const next = new URLSearchParams(prev);
-                    if (selectedCode === s.section_code) next.delete("section");
-                    else next.set("section", s.section_code);
-                    return next;
-                  }, { replace: true })}
+                  onClick={() => toggleSection(s.section_code)}
                   className={`cursor-pointer border-b border-border/50 transition-colors hover:bg-secondary/50 ${
                     selectedCode === s.section_code ? "bg-secondary" : ""
                   }`}

@@ -59,7 +59,11 @@ export default function AnomalyMap() {
   const sectionFilter = searchParams.get("q") ?? "";
   const selectedCode = searchParams.get("section") ?? "";
 
-  const setParam = (key: string, value: string) => {
+  const setParam = (
+    key: string,
+    value: string,
+    opts?: { push?: boolean },
+  ) => {
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -67,7 +71,7 @@ export default function AnomalyMap() {
         else next.delete(key);
         return next;
       },
-      { replace: true },
+      { replace: !opts?.push },
     );
   };
 
@@ -187,7 +191,12 @@ export default function AnomalyMap() {
         election_id: electionId,
       });
     }
-    setParam("section", selectedCode === code ? "" : code);
+    const opening = !selectedCode && selectedCode !== code;
+    setParam(
+      "section",
+      selectedCode === code ? "" : code,
+      { push: opening },
+    );
   };
 
   // Trigger key for the fit-to-bounds effect: empty string → Bulgaria default,

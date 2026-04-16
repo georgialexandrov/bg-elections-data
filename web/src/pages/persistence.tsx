@@ -121,16 +121,22 @@ export default function Persistence() {
   const expandedSection = searchParams.get("preview") ?? null;
   const sectionSearch = searchParams.get("q") ?? "";
 
-  const setParam = useCallback((updates: Record<string, string | null>) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      for (const [k, v] of Object.entries(updates)) {
-        if (v === null || v === "") next.delete(k);
-        else next.set(k, v);
-      }
-      return next;
-    }, { replace: true });
-  }, [setSearchParams]);
+  const setParam = useCallback(
+    (
+      updates: Record<string, string | null>,
+      opts?: { push?: boolean },
+    ) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        for (const [k, v] of Object.entries(updates)) {
+          if (v === null || v === "") next.delete(k);
+          else next.set(k, v);
+        }
+        return next;
+      }, { replace: !opts?.push });
+    },
+    [setSearchParams],
+  );
 
   const {
     data: pages,
@@ -298,7 +304,13 @@ export default function Persistence() {
               <div
                 key={s.section_code}
                 className={`cursor-pointer px-3 py-2.5 transition-colors active:bg-muted/50 ${expandedSection === s.section_code ? "bg-muted/50" : ""}`}
-                onClick={() => setParam({ preview: expandedSection === s.section_code ? null : s.section_code })}
+                onClick={() => {
+                  const opening = !expandedSection && expandedSection !== s.section_code;
+                  setParam(
+                    { preview: expandedSection === s.section_code ? null : s.section_code },
+                    { push: opening },
+                  );
+                }}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
@@ -447,7 +459,13 @@ export default function Persistence() {
                 <tr
                   key={s.section_code}
                   className={`cursor-pointer border-t border-border/50 transition-colors hover:bg-muted/50 ${expandedSection === s.section_code ? "bg-muted/50" : ""}`}
-                  onClick={() => setParam({ preview: expandedSection === s.section_code ? null : s.section_code })}
+                  onClick={() => {
+                  const opening = !expandedSection && expandedSection !== s.section_code;
+                  setParam(
+                    { preview: expandedSection === s.section_code ? null : s.section_code },
+                    { push: opening },
+                  );
+                }}
                 >
                   <td className="px-2 py-1.5 font-mono text-[11px] tabular-nums">
                     <a
