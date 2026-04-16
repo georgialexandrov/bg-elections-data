@@ -9,6 +9,11 @@ Sentry.init({
     Sentry.browserTracingIntegration(),
     Sentry.replayIntegration(),
   ],
+  ignoreErrors: [
+    // Injected scripts from Facebook / Instagram in-app webviews on iOS.
+    // WKWebView exposes window.webkit.messageHandlers; other embeddings don't.
+    /webkit\.messageHandlers/,
+  ],
   sendDefaultPii: true,
   tracesSampleRate: 1.0,
   replaysSessionSampleRate: 0.1,

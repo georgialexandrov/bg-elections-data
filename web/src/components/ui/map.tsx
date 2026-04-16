@@ -184,6 +184,7 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
   const [mapInstance, setMapInstance] = useState<MapLibreGL.Map | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isStyleLoaded, setIsStyleLoaded] = useState(false);
+  const [hasMapError, setHasMapError] = useState(false);
   const currentStyleRef = useRef<MapStyleOption | null>(null);
   const styleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const internalUpdateRef = useRef(false);
@@ -220,19 +221,27 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
       resolvedTheme === "dark" ? mapStyles.dark : mapStyles.light;
     currentStyleRef.current = initialStyle;
 
-    const map = new MapLibreGL.Map({
-      container: containerRef.current,
-      style: initialStyle,
-      renderWorldCopies: false,
-      dragRotate: false,
-      pitchWithRotate: false,
-      touchPitch: false,
-      attributionControl: {
-        compact: true,
-      },
-      ...props,
-      ...viewport,
-    });
+    let map: MapLibreGL.Map;
+    try {
+      map = new MapLibreGL.Map({
+        container: containerRef.current,
+        style: initialStyle,
+        renderWorldCopies: false,
+        dragRotate: false,
+        pitchWithRotate: false,
+        touchPitch: false,
+        attributionControl: {
+          compact: true,
+        },
+        ...props,
+        ...viewport,
+      });
+    } catch {
+      // MapLibre throws synchronously when WebGL is unavailable
+      // (old Android WebViews, headless browsers, blocked contexts).
+      setHasMapError(true);
+      return;
+    }
 
     // Disable rotation via keyboard (shift+arrow) and touch
     map.keyboard.disableRotation();
@@ -334,13 +343,28 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
         ref={containerRef}
         className={cn("relative h-full w-full", className)}
       >
-        {(!isLoaded || loading) && <DefaultLoader />}
-        {/* SSR-safe: children render only when map is loaded on client */}
-        {mapInstance && children}
+        {hasMapError ? (
+          <MapUnavailable />
+        ) : (
+          <>
+            {(!isLoaded || loading) && <DefaultLoader />}
+            {/* SSR-safe: children render only when map is loaded on client */}
+            {mapInstance && children}
+          </>
+        )}
       </div>
     </MapContext.Provider>
   );
 });
+
+function MapUnavailable() {
+  return (
+    <div className="text-muted-foreground bg-background absolute inset-0 z-10 flex flex-col items-center justify-center gap-1 p-6 text-center text-sm">
+      <p>Картата не може да се визуализира на това устройство.</p>
+      <p className="text-xs">Необходима е поддръжка на WebGL.</p>
+    </div>
+  );
+}
 
 type MarkerContextValue = {
   marker: MapLibreGL.Marker;
