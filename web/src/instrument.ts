@@ -13,6 +13,9 @@ Sentry.init({
     // Injected scripts from Facebook / Instagram in-app webviews on iOS.
     // WKWebView exposes window.webkit.messageHandlers; other embeddings don't.
     /webkit\.messageHandlers/,
+    // Microsoft Outlook SafeLinks / Protected Services scanner bot — fires
+    // when our links are scanned from Outlook. Not our code.
+    /Object Not Found Matching Id:\d+, MethodName:update, ParamCount:\d+/,
   ],
   sendDefaultPii: true,
   tracesSampleRate: 1.0,
