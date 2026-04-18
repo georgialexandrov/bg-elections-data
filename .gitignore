@@ -35,3 +35,8 @@ dist/
 
 # OG image cache (generated on demand)
 og-cache/
+
+# Playwright screenshots and reports (ephemeral — run `pnpm screenshots` to regenerate)
+web/screenshots/
+web/test-results/
+web/playwright-report/
