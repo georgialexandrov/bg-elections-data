@@ -798,43 +798,24 @@ export default function DesignSystem() {
 
             {/* Unified section filters */}
             <div className="mt-8">
-              <Eyebrow>Section filters · full-width, two tiers</Eyebrow>
+              <Eyebrow>Section filters · full-width, single row</Eyebrow>
               <p className="mt-2 max-w-prose text-muted-foreground">
                 Един компонент, рендериран идентично на всяка страница, която филтрира
                 секции (карта на аномалиите, таблица, системни сигнали). State живее в
                 URL-а. Без children, без slot-ове, без per-page варианти — „същото
-                навсякъде&quot; означава буквално същото.
+                навсякъде&quot; означава буквално същото. Методологията е dropdown,
+                равно на останалите полета, а не отделен ред от табове.
               </p>
               <div className="mt-3 overflow-hidden border border-border bg-background">
-                {/* Methodology tier — eyebrow + text tabs with brand underline */}
-                <div className="flex items-center gap-4 border-b border-border/60 px-4 py-2.5">
-                  <span className="shrink-0 text-xs font-medium uppercase tracking-eyebrow text-muted-foreground">
-                    Методология
-                  </span>
-                  <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-                    {[
-                      { l: "Протокол", on: true },
-                      { l: "Обобщена", on: false },
-                      { l: "Бенфорд", on: false },
-                      { l: "Съседи", on: false },
-                      { l: "АКФ", on: false },
-                    ].map((m) => (
-                      <span
-                        key={m.l}
-                        className={`text-sm ${
-                          m.on
-                            ? "brand-underline text-foreground"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        {m.l}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Filter tier — selects, search, types, toggle */}
+                {/* Filter tier — methodology dropdown + selects + search + types + toggle */}
                 <div className="flex flex-wrap items-end gap-4 px-4 py-3">
+                  <div className="min-w-0 sm:w-44">
+                    <div className="mb-1 text-xs text-muted-foreground">Методология</div>
+                    <div className="flex h-8 items-center justify-between rounded-md border border-input bg-card px-3 text-sm">
+                      <span>Всички сигнали</span>
+                      <span className="text-muted-foreground">▾</span>
+                    </div>
+                  </div>
                   <div className="min-w-0 sm:w-44">
                     <div className="mb-1 text-xs text-muted-foreground">Област</div>
                     <div className="flex h-8 items-center justify-between rounded-md border border-input bg-card px-3 text-sm">
@@ -869,12 +850,10 @@ export default function DesignSystem() {
                 </div>
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
-                Горен ред: лещата над данните (методология). Долен ред: ограничители
-                (кой район, кои секции). Hairline{" "}
-                <code className="font-mono">border-border/60</code> разделя нивата.
-                Активният таб носи{" "}
-                <code className="font-mono">.brand-underline</code> — единственият
-                индикатор за избор, никакви pill-ове.
+                Един ред. Методологията е dropdown с дефолт{" "}
+                <code className="font-mono">„Всички сигнали&quot;</code>, равна по визуална
+                тежест с Област, Община, Тип секция. Селекцията сменя лещата над данните,
+                но не се държи като филтър и не се брои в броя на активните филтри.
               </p>
             </div>
 

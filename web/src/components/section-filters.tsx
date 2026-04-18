@@ -19,14 +19,14 @@ import {
 } from "@/lib/section-types.js";
 
 const METHODOLOGIES: { key: AnomalyMethodology; label: string }[] = [
+  { key: "combined", label: "Всички сигнали" },
   { key: "protocol", label: "Протокол" },
-  { key: "combined", label: "Обобщена" },
-  { key: "benford", label: "Бенфорд" },
   { key: "peer", label: "Съседи" },
+  { key: "benford", label: "Бенфорд" },
   { key: "acf", label: "АКФ" },
 ];
 
-const DEFAULT_METHODOLOGY: AnomalyMethodology = "protocol";
+const DEFAULT_METHODOLOGY: AnomalyMethodology = "combined";
 
 function parseMethodology(raw: string | null): AnomalyMethodology {
   const found = METHODOLOGIES.find((m) => m.key === raw);
@@ -113,71 +113,33 @@ export function Filters() {
         )}
       </button>
 
-      {/* Methodology — the lens over the data. Below `2xl` it sits on its own
-          row above the filter fields; at `2xl+` we collapse this row into the
-          filter row so wide viewports only show one filter strip. `2xl` is
-          the threshold because anything below that doesn't have the horizontal
-          room to fit methodology + all six filter fields on one line. */}
-      <div
-        className={`items-center gap-4 border-b border-border/60 px-3 py-2 md:flex md:px-4 md:py-2.5 2xl:hidden ${
-          expanded ? "flex" : "hidden md:flex"
-        }`}
-      >
-        <span className="shrink-0 text-xs font-medium uppercase tracking-eyebrow text-muted-foreground">
-          Методология
-        </span>
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-          {METHODOLOGIES.map((m) => {
-            const active = methodology === m.key;
-            return (
-              <button
-                key={m.key}
-                type="button"
-                onClick={() => setMethodology(m.key)}
-                className={`text-sm transition-colors ${
-                  active
-                    ? "brand-underline text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {m.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       <div
         className={`flex-wrap items-end gap-3 px-3 py-2 md:flex md:gap-4 md:px-4 md:py-3 ${
           expanded ? "flex" : "hidden md:flex"
         }`}
       >
-        {/* Methodology — inline with the fields at `2xl+` only, where there
-            is enough horizontal room for all six fields on one line. */}
-        <div className="hidden items-end gap-4 2xl:flex">
-          <Field label="Методология">
-            <div className="flex h-8 items-center gap-x-4">
-              {METHODOLOGIES.map((m) => {
-                const active = methodology === m.key;
-                return (
-                  <button
-                    key={m.key}
-                    type="button"
-                    onClick={() => setMethodology(m.key)}
-                    className={`text-sm transition-colors ${
-                      active
-                        ? "brand-underline text-foreground"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {m.label}
-                  </button>
-                );
-              })}
-            </div>
-          </Field>
-          <span className="mb-2 h-6 w-px bg-border" aria-hidden="true" />
-        </div>
+        {/* Methodology — the lens over the data. Folded into the filter row
+            as a dropdown so it sits at the same visual weight as every other
+            filter, not as a row of tab-like choices demanding a decision. */}
+        <Field label="Методология" className="sm:w-44">
+          <Select
+            value={methodology}
+            onValueChange={(v) => setMethodology(v as AnomalyMethodology)}
+          >
+            <SelectTrigger size="sm" className="w-full text-sm font-medium">
+              <SelectValue>
+                {METHODOLOGIES.find((m) => m.key === methodology)?.label}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {METHODOLOGIES.map((m) => (
+                <SelectItem key={m.key} value={m.key}>
+                  {m.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
 
         {/* District */}
         <Field label="Област" className="sm:w-44">
@@ -235,20 +197,21 @@ export function Filters() {
           </Select>
         </Field>
 
-        {/* Section search — flexes to fill the remaining row at every size so
-            the bar never horizontal-scrolls. Capped on large viewports so it
-            doesn't swallow the row. */}
-        <Field label="Секция / адрес" className="w-full sm:flex-1 sm:min-w-60 lg:max-w-sm">
+        {/* Section search — wider than the other fields because the value is
+            a variable-length string, not a single dropdown choice. */}
+        <Field label="Секция / адрес" className="w-full sm:w-64">
           <SectionSearchInput
             value={sectionSearch}
             onPick={(code) => update({ q: code || null })}
           />
         </Field>
 
-        {/* Right cluster — type + only-anomalies. Divider only at lg+, where
-            the cluster reliably sits on the same row; below lg it wraps and
-            an orphaned left-border looks wrong. */}
-        <div className="flex flex-wrap items-end gap-3 md:ml-auto md:gap-4 lg:border-l lg:border-border lg:pl-4">
+        {/* Type + only-anomalies. Everything in this bar is a filter, so we
+            flow them with the same gap instead of pushing a cluster to the
+            right edge — that split read as "two kinds of control" when the
+            methodology row was visible, but with methodology folded in it is
+            just one kind. */}
+        <div className="flex flex-wrap items-end gap-3 md:gap-4">
           <Field label="Тип секция" className="sm:w-44">
             <SectionTypesPicker
               value={sectionTypes}
