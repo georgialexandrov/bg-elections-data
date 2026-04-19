@@ -18,6 +18,7 @@ import {
 import { LiveMapLayer } from "./live-map.js";
 import { LiveSearch } from "./live-search.js";
 import { LiveSectionPopup } from "./live-section-popup.js";
+import { LiveHoverTooltip } from "./live-hover-tooltip.js";
 import { LiveVideoPanel } from "./live-video-panel.js";
 import { LiveStatusBadge } from "./live-status-badge.js";
 
@@ -49,6 +50,7 @@ export default function Live() {
   const isMobile = useIsMobile();
   const [watchCodes, setWatchCodes] = useState<string[]>([]);
   const [popupAddressId, setPopupAddressId] = useState<string | null>(null);
+  const [hoverAddressId, setHoverAddressId] = useState<string | null>(null);
   const mapRef = useRef<MapLibreGL.Map | null>(null);
 
   const realStreamBySection = useMemo(() => {
@@ -134,6 +136,12 @@ export default function Live() {
   );
 
   const popupAddress = popupAddressId ? addressById.get(popupAddressId) ?? null : null;
+  // Suppress the hover tooltip when the click popup is already showing
+  // the same address — one info card beats two stacked on the same pin.
+  const hoverAddress =
+    hoverAddressId && hoverAddressId !== popupAddressId
+      ? addressById.get(hoverAddressId) ?? null
+      : null;
 
   const stats = useMemo(() => {
     let live = 0;
@@ -225,7 +233,16 @@ export default function Live() {
             metrics={metrics}
             liveCodes={liveCodes}
             onClick={handleOpenPopup}
+            onHover={setHoverAddressId}
           />
+
+          {hoverAddress && (
+            <LiveHoverTooltip
+              address={hoverAddress}
+              metrics={metrics}
+              liveCodes={liveCodes}
+            />
+          )}
 
           {popupAddress && (
             <LiveSectionPopup

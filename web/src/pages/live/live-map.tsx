@@ -26,15 +26,19 @@ export function LiveMapLayer({
   metrics,
   liveCodes,
   onClick,
+  onHover,
 }: {
   addresses: LiveAddress[];
   metrics: LiveMetrics | undefined;
   liveCodes: Set<string>;
   onClick: (addressId: string) => void;
+  onHover?: (addressId: string | null) => void;
 }) {
   const { map, isLoaded } = useMap();
   const onClickRef = useRef(onClick);
   onClickRef.current = onClick;
+  const onHoverRef = useRef(onHover);
+  onHoverRef.current = onHover;
 
   useEffect(() => {
     if (!map || !isLoaded) return;
@@ -138,12 +142,21 @@ export function LiveMapLayer({
     };
     const handleLeave = () => {
       map.getCanvas().style.cursor = "";
+      onHoverRef.current?.(null);
+    };
+    const handleMove = (e: MapLibreGL.MapMouseEvent) => {
+      const layers = [BLINK_LAYER, DOT_LAYER].filter((id) => map.getLayer(id));
+      if (layers.length === 0) return;
+      const features = map.queryRenderedFeatures(e.point, { layers });
+      const id = features[0]?.properties?.id as string | undefined;
+      onHoverRef.current?.(id ?? null);
     };
 
     for (const id of [DOT_LAYER, BLINK_LAYER]) {
       map.on("click", id, handleClick);
       map.on("mouseenter", id, handleEnter);
       map.on("mouseleave", id, handleLeave);
+      map.on("mousemove", id, handleMove);
     }
 
     return () => {
@@ -152,6 +165,7 @@ export function LiveMapLayer({
         map.off("click", id, handleClick);
         map.off("mouseenter", id, handleEnter);
         map.off("mouseleave", id, handleLeave);
+        map.off("mousemove", id, handleMove);
       }
       try {
         if (map.getLayer(BLINK_LAYER)) map.removeLayer(BLINK_LAYER);
