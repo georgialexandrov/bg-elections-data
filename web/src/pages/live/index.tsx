@@ -57,10 +57,10 @@ export default function Live() {
     const m = new Map<string, string>();
     for (const raw of streamsDir?.sections ?? []) {
       const entry = raw as LiveStreamEntry;
-      if (!entry.section_code) continue;
-      const url = entry.stream_url ?? entry.hls_url;
-      if (typeof url === "string" && url.length > 0) {
-        m.set(entry.section_code, url);
+      const code = entry.id ?? entry.section_code;
+      const url = entry.url ?? entry.stream_url ?? entry.hls_url;
+      if (code && typeof url === "string" && url.length > 0) {
+        m.set(code, url);
       }
     }
     return m;

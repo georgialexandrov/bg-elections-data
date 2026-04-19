@@ -34,14 +34,16 @@ export async function getLiveMetrics(): Promise<LiveMetrics> {
 }
 
 /**
- * Directory of sections that currently have an active video stream. The
- * back-end may return different fields over time — we consume it as a loose
- * object keyed off `section_code`. At the time this was written the
- * discovery endpoint was still empty; the shape below is a best-effort cast
- * that the UI degrades from if fields are missing.
+ * One entry in the discovery stream list. The back-end returns `id` for
+ * the section code and `url` for the playable stream (MP4 / HLS); older
+ * drafts used `section_code` / `stream_url`, so we keep those optional
+ * for forward compatibility.
  */
 export interface LiveStreamEntry {
-  section_code: string;
+  id?: string;
+  url?: string;
+  label?: string;
+  section_code?: string;
   stream_url?: string;
   hls_url?: string;
   box_ip?: string;
