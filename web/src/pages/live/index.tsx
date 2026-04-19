@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router";
 import type MapLibreGL from "maplibre-gl";
 import { Map as LibreMap } from "@/components/ui/map";
 import { useLiveSections } from "@/lib/hooks/use-live-sections.js";
@@ -9,6 +10,7 @@ import {
 import { useElections } from "@/lib/hooks/use-elections.js";
 import type { LiveSection } from "@/lib/api/live-sections.js";
 import type { LiveStreamEntry } from "@/lib/api/live-metrics.js";
+import { buildDemo } from "./demo.js";
 
 import {
   BULGARIA_CENTER,
@@ -37,15 +39,18 @@ import { LiveStatusBadge } from "./live-status-badge.js";
  */
 export default function Live() {
   const { data: sections = [], isLoading: sectionsLoading } = useLiveSections();
-  const { data: metrics } = useLiveMetrics();
+  const { data: liveMetrics } = useLiveMetrics();
   const { data: streamsDir } = useLiveStreamsDirectory();
   const { data: elections = [] } = useElections();
   const latestElectionId = elections[0]?.id;
 
+  const [searchParams] = useSearchParams();
+  const demoMode = searchParams.get("demo") === "1";
+
   const [openCodes, setOpenCodes] = useState<string[]>([]);
   const mapRef = useRef<MapLibreGL.Map | null>(null);
 
-  const streamBySection = useMemo(() => {
+  const realStreamBySection = useMemo(() => {
     const m = new Map<string, string>();
     for (const raw of streamsDir?.sections ?? []) {
       const entry = raw as LiveStreamEntry;
@@ -57,6 +62,16 @@ export default function Live() {
     }
     return m;
   }, [streamsDir]);
+
+  // Demo mode — `?demo=1` replaces /video/metrics and /video/sections with
+  // synthetic data covering every camera state. Re-computed only when the
+  // section list resolves, so the sample set is stable across clicks.
+  const demo = useMemo(
+    () => (demoMode ? buildDemo(sections) : null),
+    [demoMode, sections],
+  );
+  const metrics = demo?.metrics ?? liveMetrics;
+  const streamBySection = demo?.streamBySection ?? realStreamBySection;
 
   const liveCodes = useMemo(
     () => new Set(streamBySection.keys()),

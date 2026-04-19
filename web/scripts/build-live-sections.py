@@ -28,7 +28,13 @@ def main() -> None:
         data = json.load(f)
 
     out: list[dict] = []
+    skipped_abroad = 0
     for row in data["rows"]:
+        # RIK 32 is the abroad district. There are no CIK cameras there,
+        # so the /live map has nothing to render for those sections.
+        if row["rik"] == 32:
+            skipped_abroad += len(row["section_codes"])
+            continue
         for code in row["section_codes"]:
             out.append(
                 {
@@ -45,7 +51,7 @@ def main() -> None:
         json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
 
     print(f"{SRC} -> {DST}")
-    print(f"{len(data['rows'])} addresses, {len(out)} sections")
+    print(f"{len(data['rows'])} addresses, {len(out)} sections ({skipped_abroad} abroad skipped)")
 
 
 if __name__ == "__main__":
