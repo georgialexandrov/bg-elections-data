@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import type { LiveAddress } from "@/lib/api/live-sections.js";
 import type { LiveMetrics } from "@/lib/api/live-metrics.js";
 import { LiveAddressCard } from "./live-video-card.js";
@@ -49,12 +49,16 @@ export function LiveVideoPanel({
 
   return (
     <aside
-      className="flex w-full shrink-0 flex-col overflow-auto border-t border-border bg-background/95 p-3 backdrop-blur max-h-[60vh] md:max-h-none md:border-l md:border-t-0"
-      style={{ ["--panel-width" as string]: `${desktopWidthPx}px` }}
+      className="flex w-full shrink-0 flex-col overflow-auto border-t border-border bg-background/95 p-3 backdrop-blur max-h-[60vh] md:h-full md:max-h-none md:max-w-[50vw] md:border-l md:border-t-0 md:w-[var(--panel-width)]"
+      style={
+        {
+          ["--panel-width" as string]: `${desktopWidthPx + 24}px`,
+          ["--panel-rows" as string]: String(cardsPerCol),
+        } as CSSProperties
+      }
     >
       <div
-        className="grid gap-3 md:w-[var(--panel-width)] md:[grid-auto-flow:column] md:[grid-template-rows:repeat(var(--panel-rows),min-content)]"
-        style={{ ["--panel-rows" as string]: String(cardsPerCol) }}
+        className="grid gap-3 md:[grid-auto-flow:column] md:[grid-template-rows:repeat(var(--panel-rows),min-content)]"
       >
         {openAddresses.map((a) => (
           <LiveAddressCard

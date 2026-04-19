@@ -72,10 +72,10 @@ export function LiveMapLayer({
     };
 
     Promise.all([loadSdfImage(DISC_SVG), loadSdfImage(GLYPH_SVG)]).then(
-      ([discImg, glyphImg]) => {
-        if (cancelled || !map || !discImg || !glyphImg) return;
-        if (!map.hasImage(DISC_ICON)) map.addImage(DISC_ICON, discImg, { sdf: true });
-        if (!map.hasImage(GLYPH_ICON)) map.addImage(GLYPH_ICON, glyphImg, { sdf: true });
+      ([discData, glyphData]) => {
+        if (cancelled || !map || !discData || !glyphData) return;
+        if (!map.hasImage(DISC_ICON)) map.addImage(DISC_ICON, discData, { sdf: true });
+        if (!map.hasImage(GLYPH_ICON)) map.addImage(GLYPH_ICON, glyphData, { sdf: true });
 
         if (!map.getSource(SOURCE_ID)) {
           map.addSource(SOURCE_ID, {
@@ -288,11 +288,34 @@ export function addressTone(
   return anyGreen ? "green" : "grey";
 }
 
-function loadSdfImage(svg: string): Promise<HTMLImageElement | null> {
+/**
+ * Rasterize an inline SVG to raw RGBA pixel data. MapLibre's SDF pipeline
+ * has rejected HTMLImageElements in some browsers ("could not read blob
+ * argument to createImageBitmap") — passing `{ width, height, data }`
+ * from a canvas avoids that path entirely and is always safe.
+ */
+function loadSdfImage(svg: string): Promise<ImageData | null> {
   return new Promise((resolve) => {
+    const size = 64;
     const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
     const img = new Image();
-    img.onload = () => resolve(img);
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+        ctx.clearRect(0, 0, size, size);
+        ctx.drawImage(img, 0, 0, size, size);
+        resolve(ctx.getImageData(0, 0, size, size));
+      } catch {
+        resolve(null);
+      }
+    };
     img.onerror = () => resolve(null);
     img.src = url;
   });
