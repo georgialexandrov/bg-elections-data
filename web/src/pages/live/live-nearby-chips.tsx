@@ -7,23 +7,30 @@ import { findNearbyAddresses } from "./nearby.js";
 
 /**
  * "Other polling places down the street" — a small chip row inside each
- * open card. Clicking a chip opens that address's card. Already-open
- * addresses show greyed-out so the chip row reflects panel state.
+ * card. Clicking a chip opens the section-picker popup for that address
+ * on the map so the viewer can decide which camera to add.
+ *
+ * `streamBySection` is kept in the props (unused here today) because the
+ * downstream tone calculation will start differentiating "has a stream"
+ * from "has ok metrics" once the real camera feed goes live.
  */
 export function LiveNearbyChips({
   target,
   allAddresses,
   metrics,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  streamBySection,
   liveCodes,
-  openIds,
-  onOpen,
+  watchedAddressIds,
+  onOpenPopup,
 }: {
   target: LiveAddress;
   allAddresses: LiveAddress[];
   metrics: LiveMetrics | undefined;
+  streamBySection: Map<string, string>;
   liveCodes: Set<string>;
-  openIds: string[];
-  onOpen: (id: string) => void;
+  watchedAddressIds: string[];
+  onOpenPopup: (addressId: string) => void;
 }) {
   const nearby = useMemo(
     () => findNearbyAddresses(target, allAddresses),
@@ -32,7 +39,7 @@ export function LiveNearbyChips({
 
   if (nearby.length === 0) return null;
 
-  const openSet = new Set(openIds);
+  const watchedSet = new Set(watchedAddressIds);
 
   return (
     <div className="flex flex-col gap-1 border-t border-border px-3 py-2">
@@ -45,8 +52,8 @@ export function LiveNearbyChips({
             key={a.id}
             address={a}
             tone={addressTone(a, metrics, liveCodes)}
-            open={openSet.has(a.id)}
-            onClick={() => onOpen(a.id)}
+            watched={watchedSet.has(a.id)}
+            onClick={() => onOpenPopup(a.id)}
           />
         ))}
       </div>
@@ -57,12 +64,12 @@ export function LiveNearbyChips({
 function NearbyChip({
   address,
   tone,
-  open,
+  watched,
   onClick,
 }: {
   address: LiveAddress;
   tone: "green" | "red" | "grey";
-  open: boolean;
+  watched: boolean;
   onClick: () => void;
 }) {
   const dotClass =
@@ -76,12 +83,11 @@ function NearbyChip({
     <button
       type="button"
       onClick={onClick}
-      disabled={open}
       title={address.address}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-3xs tabular-nums transition-colors",
-        open
-          ? "cursor-default border-border/60 bg-muted/40 text-muted-foreground"
+        watched
+          ? "border-emerald-500/40 bg-emerald-500/5 text-foreground"
           : "border-border bg-background text-foreground hover:bg-secondary",
       )}
     >
@@ -92,7 +98,6 @@ function NearbyChip({
           +{address.section_codes.length - 1}
         </span>
       )}
-      {open && <span className="text-3xs uppercase tracking-eyebrow">·отв.</span>}
     </button>
   );
 }

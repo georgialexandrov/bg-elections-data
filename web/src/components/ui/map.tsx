@@ -1508,4 +1508,5 @@ export {
   MapMarker,
   MarkerContent,
   MapControls,
+  MapPopup,
 };

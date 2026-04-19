@@ -1,59 +1,56 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
-import { X, ExternalLink, ChartBar, ChevronLeft } from "lucide-react";
+import { X, ExternalLink, ChartBar } from "lucide-react";
 import type { LiveAddress } from "@/lib/api/live-sections.js";
 import type { LiveSectionMetric } from "@/lib/api/live-metrics.js";
 import { cn } from "@/lib/utils";
-import { LiveStatusBadge, statusTone, type UiStatus } from "./live-status-badge.js";
+import {
+  LiveStatusBadge,
+  statusTone,
+  type UiStatus,
+} from "./live-status-badge.js";
 import { LiveNearbyChips } from "./live-nearby-chips.js";
 import type { LiveMetrics } from "@/lib/api/live-metrics.js";
 
 /**
- * One card per opened polling address. Two view modes:
- *   - Single section (either the address has one section, or the viewer
- *     drilled in): shows the video / snapshot / waiting message plus a
- *     back button to return to the picker.
- *   - Picker: a compact list of every section at this address, each with
- *     its own live status. Clicking a row switches to the single-section
- *     view for that code.
+ * One card per watched section code. The video is an `<iframe>` rather
+ * than a `<video>` because the CIK stream URLs are served from a
+ * different origin and a bare `<video src>` would break on CORS or on
+ * any player UI wrapper; an iframe lets the upstream viewer handle its
+ * own MIME and controls.
  *
- * The card always carries header (address, close), footer (past results
- * link), and nearby chips — so election-day context is never one click
- * away. Red-state transitions pulse the border once so observers notice.
+ * Header: section code · address · live status. Flashes the border once
+ * on every red-state transition so observers catch the event without the
+ * UI looping an animation.
  */
-export function LiveAddressCard({
+export function LiveVideoCard({
+  sectionCode,
   address,
+  metric,
+  streamUrl,
   metrics,
   streamBySection,
   allAddresses,
-  openIds,
   liveCodes,
-  onOpen,
+  watchedAddressIds,
+  onOpenPopup,
   onClose,
 }: {
-  address: LiveAddress;
+  sectionCode: string;
+  address: LiveAddress | undefined;
+  metric: LiveSectionMetric | undefined;
+  streamUrl: string | undefined;
   metrics: LiveMetrics | undefined;
   streamBySection: Map<string, string>;
   allAddresses: LiveAddress[];
-  openIds: string[];
   liveCodes: Set<string>;
-  onOpen: (addressId: string) => void;
+  watchedAddressIds: string[];
+  onOpenPopup: (addressId: string) => void;
   onClose: () => void;
 }) {
-  const single = address.section_codes.length === 1;
-  // Picker shows on multi-section addresses until the user picks a code.
-  const [activeCode, setActiveCode] = useState<string | null>(
-    single ? address.section_codes[0] : null,
-  );
+  const uiStatus = resolveStatus(metric, streamUrl);
+  const tone = statusTone(uiStatus);
 
-  const activeMetric = activeCode ? metrics?.[activeCode] : undefined;
-  const activeStream = activeCode ? streamBySection.get(activeCode) : undefined;
-  const uiStatus: UiStatus | null = activeCode
-    ? resolveStatus(activeMetric, activeStream)
-    : null;
-  const tone = uiStatus ? statusTone(uiStatus) : null;
-
-  // Pulse-once on any transition into a red state.
   const [flash, setFlash] = useState(false);
   const prevToneRef = useRef(tone);
   useEffect(() => {
@@ -65,47 +62,28 @@ export function LiveAddressCard({
     prevToneRef.current = tone;
   }, [tone]);
 
-  const reportedAgo = activeMetric?.reported_at
-    ? secondsAgo(activeMetric.reported_at)
-    : null;
+  const reportedAgo = metric?.reported_at ? secondsAgo(metric.reported_at) : null;
 
   return (
     <article
       className={cn(
-        "overflow-hidden rounded-md border bg-card shadow-sm",
+        "flex flex-col overflow-hidden rounded-md border bg-card shadow-sm",
         flash ? "border-score-high" : "border-border",
       )}
     >
-      {/* Header */}
       <header className="flex items-start justify-between gap-2 border-b border-border px-3 py-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
-            {!single && activeCode && (
-              <button
-                type="button"
-                onClick={() => setActiveCode(null)}
-                className="inline-flex items-center gap-0.5 rounded text-2xs font-medium uppercase tracking-eyebrow text-muted-foreground transition-colors hover:text-foreground"
-                aria-label="Обратно към списъка със секции"
-              >
-                <ChevronLeft size={12} />
-                секции
-              </button>
-            )}
             <span className="font-mono text-xs font-semibold tabular-nums text-foreground">
-              {activeCode ?? address.section_codes[0]}
+              {sectionCode}
             </span>
-            {!single && (
-              <span className="rounded bg-muted px-1.5 py-0.5 text-3xs font-medium uppercase tracking-wide text-muted-foreground">
-                {address.section_codes.length} секции
-              </span>
-            )}
-            {uiStatus && <LiveStatusBadge status={uiStatus} />}
+            <LiveStatusBadge status={uiStatus} />
           </div>
           <p
             className="mt-0.5 truncate text-xs text-muted-foreground"
-            title={address.address}
+            title={address?.address}
           >
-            {address.address}
+            {address?.address ?? "—"}
           </p>
         </div>
         <button
@@ -118,126 +96,77 @@ export function LiveAddressCard({
         </button>
       </header>
 
-      {/* Body: picker or video */}
-      {activeCode ? (
-        <>
-          <div className="relative aspect-video w-full bg-black">
-            <VideoArea metric={activeMetric} streamUrl={activeStream} />
-          </div>
+      <div className="relative aspect-video w-full bg-black">
+        <VideoArea
+          sectionCode={sectionCode}
+          metric={metric}
+          streamUrl={streamUrl}
+        />
+      </div>
 
-          <div className="flex flex-col gap-2 px-3 py-2">
-            {reportedAgo != null && (
-              <p className="text-3xs uppercase tracking-eyebrow text-muted-foreground">
-                обновено преди {reportedAgo} сек.
-              </p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <Link
-                to={`/section/${activeCode}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-secondary"
-              >
-                <ChartBar size={12} />
-                Минали резултати
-              </Link>
-              {activeStream && (
-                <a
-                  href={activeStream}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-secondary"
-                >
-                  <ExternalLink size={12} />
-                  Отвори стрийма
-                </a>
-              )}
-            </div>
-          </div>
-        </>
-      ) : (
-        <SectionPicker
-          address={address}
+      <div className="flex flex-col gap-2 px-3 py-2">
+        {reportedAgo != null && (
+          <p className="text-3xs uppercase tracking-eyebrow text-muted-foreground">
+            обновено преди {reportedAgo} сек.
+          </p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <Link
+            to={`/section/${sectionCode}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-secondary"
+          >
+            <ChartBar size={12} />
+            Минали резултати
+          </Link>
+          {streamUrl && (
+            <a
+              href={streamUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-secondary"
+            >
+              <ExternalLink size={12} />
+              Отвори стрийма
+            </a>
+          )}
+        </div>
+      </div>
+
+      {address && (
+        <LiveNearbyChips
+          target={address}
+          allAddresses={allAddresses}
           metrics={metrics}
           streamBySection={streamBySection}
-          onPick={setActiveCode}
+          liveCodes={liveCodes}
+          watchedAddressIds={watchedAddressIds}
+          onOpenPopup={onOpenPopup}
         />
       )}
-
-      <LiveNearbyChips
-        target={address}
-        allAddresses={allAddresses}
-        metrics={metrics}
-        liveCodes={liveCodes}
-        openIds={openIds}
-        onOpen={onOpen}
-      />
     </article>
   );
 }
 
-function SectionPicker({
-  address,
-  metrics,
-  streamBySection,
-  onPick,
-}: {
-  address: LiveAddress;
-  metrics: LiveMetrics | undefined;
-  streamBySection: Map<string, string>;
-  onPick: (code: string) => void;
-}) {
-  return (
-    <div className="flex flex-col px-3 py-2">
-      <p className="text-3xs font-medium uppercase tracking-eyebrow text-muted-foreground">
-        {address.section_codes.length} секции на този адрес
-      </p>
-      <ul className="mt-2 divide-y divide-border/60 rounded-md border border-border">
-        {address.section_codes.map((code) => {
-          const status = resolveStatus(metrics?.[code], streamBySection.get(code));
-          return (
-            <li key={code}>
-              <button
-                type="button"
-                onClick={() => onPick(code)}
-                className="flex w-full items-center justify-between gap-3 px-2.5 py-1.5 text-left transition-colors hover:bg-secondary/50"
-              >
-                <span className="font-mono text-xs font-semibold tabular-nums text-foreground">
-                  {code}
-                </span>
-                <div className="flex items-center gap-2">
-                  <LiveStatusBadge status={status} />
-                  <span className="text-score-high text-2xs font-medium uppercase tracking-eyebrow">
-                    виж →
-                  </span>
-                </div>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
 function VideoArea({
+  sectionCode,
   metric,
   streamUrl,
 }: {
+  sectionCode: string;
   metric: LiveSectionMetric | undefined;
   streamUrl: string | undefined;
 }) {
   if (streamUrl) {
     return (
-      <video
+      <iframe
         key={streamUrl}
         src={streamUrl}
-        poster={metric?.snapshot_url}
-        autoPlay
-        muted
-        playsInline
-        controls
-        className="h-full w-full object-contain"
+        title={`Стрийм ${sectionCode}`}
+        loading="lazy"
+        allow="autoplay; fullscreen; picture-in-picture"
+        className="h-full w-full border-0"
       />
     );
   }

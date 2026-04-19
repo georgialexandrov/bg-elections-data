@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import type MapLibreGL from "maplibre-gl";
 import { Map as LibreMap } from "@/components/ui/map";
@@ -17,24 +17,26 @@ import {
 } from "@/pages/anomaly-map/map/constants.js";
 import { LiveMapLayer } from "./live-map.js";
 import { LiveSearch } from "./live-search.js";
+import { LiveSectionPopup } from "./live-section-popup.js";
 import { LiveVideoPanel } from "./live-video-panel.js";
 import { LiveStatusBadge } from "./live-status-badge.js";
 
+const MOBILE_BREAKPOINT = 768;
+
 /**
- * Election-day live camera page. Public can find their polling address on
- * the map or search by address/section code, then open the CIK
- * livestream in a side drawer. Multiple cards can be open at once — the
- * drawer grows columns as needed.
+ * Election-day live camera page.
  *
- * This page is temporary: routed at `/` as the home for 2026-04-19.
- * After tonight we either delete it or date-gate the redirect.
+ * Flow:
+ *   1. Map shows one pin per polling address, coloured by the worst-case
+ *      status of its sections.
+ *   2. Click a pin (or search result) → a map popup lists the address's
+ *      sections with a "гледай" button each. The popup stays open so the
+ *      viewer can queue several cameras.
+ *   3. Each added section becomes a card in the side panel, showing the
+ *      CIK stream in an iframe (same-origin safety) plus a past-results
+ *      link.
  *
- * Data flow:
- *   - Polling-address index → static JSON, loaded once (useLiveAddresses).
- *   - Per-section camera health → 5 s poll of /video/metrics.
- *   - Active stream URLs → 5 s poll of /video/sections.
- *   - ?demo=1 → replaces both with synthetic data so every state can be
- *     previewed.
+ * Mobile: the panel is capped at one card so the stream isn't stamp-size.
  */
 export default function Live() {
   const { data: addresses = [], isLoading: addressesLoading } = useLiveAddresses();
@@ -44,7 +46,9 @@ export default function Live() {
   const [searchParams] = useSearchParams();
   const demoMode = searchParams.get("demo") === "1";
 
-  const [openIds, setOpenIds] = useState<string[]>([]);
+  const isMobile = useIsMobile();
+  const [watchCodes, setWatchCodes] = useState<string[]>([]);
+  const [popupAddressId, setPopupAddressId] = useState<string | null>(null);
   const mapRef = useRef<MapLibreGL.Map | null>(null);
 
   const realStreamBySection = useMemo(() => {
@@ -78,36 +82,67 @@ export default function Live() {
     return m;
   }, [addresses]);
 
-  const openAddresses = openIds
-    .map((id) => addressById.get(id))
-    .filter((a): a is LiveAddress => !!a);
+  // Reverse index so a watched section code can resolve to its address
+  // (for the card header + nearby chips).
+  const addressBySectionCode = useMemo(() => {
+    const m = new Map<string, LiveAddress>();
+    for (const a of addresses) {
+      for (const code of a.section_codes) m.set(code, a);
+    }
+    return m;
+  }, [addresses]);
 
-  const handleOpen = useCallback(
+  const watchedAddressIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const code of watchCodes) {
+      const a = addressBySectionCode.get(code);
+      if (a) ids.add(a.id);
+    }
+    return Array.from(ids);
+  }, [watchCodes, addressBySectionCode]);
+
+  const handleOpenPopup = useCallback(
     (id: string) => {
       const address = addressById.get(id);
       if (!address) return;
-      setOpenIds((prev) => (prev.includes(id) ? prev : [id, ...prev]));
+      setPopupAddressId(id);
       const map = mapRef.current;
       if (
         map &&
         Number.isFinite(address.lat) &&
         Number.isFinite(address.lon)
       ) {
-        // Zoom to neighbourhood level so surrounding markers stay visible.
         map.easeTo({
           center: [address.lon, address.lat],
           zoom: Math.max(map.getZoom(), 12),
-          duration: 700,
+          duration: 500,
         });
       }
     },
     [addressById],
   );
 
+  const handleClosePopup = useCallback(() => setPopupAddressId(null), []);
+
+  const handleWatch = useCallback(
+    (code: string) => {
+      setWatchCodes((prev) => {
+        if (prev.includes(code)) return prev;
+        // Mobile is capped at one card — replace the existing watched
+        // section so the screen shows exactly what the user just picked.
+        if (isMobile) return [code];
+        return [code, ...prev];
+      });
+    },
+    [isMobile],
+  );
+
   const handleClose = useCallback(
-    (id: string) => setOpenIds((prev) => prev.filter((x) => x !== id)),
+    (code: string) => setWatchCodes((prev) => prev.filter((c) => c !== code)),
     [],
   );
+
+  const popupAddress = popupAddressId ? addressById.get(popupAddressId) ?? null : null;
 
   const stats = useMemo(() => {
     let live = 0;
@@ -154,7 +189,10 @@ export default function Live() {
               Избори за народни представители
             </h1>
           </div>
-          <LiveSearch addresses={addresses} onPick={(a) => handleOpen(a.id)} />
+          <LiveSearch
+            addresses={addresses}
+            onPick={(a) => handleOpenPopup(a.id)}
+          />
         </div>
 
         <div className="absolute right-3 top-3 z-10 hidden flex-col items-end gap-1.5 md:flex">
@@ -195,21 +233,46 @@ export default function Live() {
             addresses={addresses}
             metrics={metrics}
             liveCodes={liveCodes}
-            onClick={handleOpen}
+            onClick={handleOpenPopup}
           />
+
+          {popupAddress && (
+            <LiveSectionPopup
+              address={popupAddress}
+              metrics={metrics}
+              streamBySection={streamBySection}
+              watchCodes={watchCodes}
+              canAddMore={!isMobile || watchCodes.length === 0}
+              onWatch={handleWatch}
+              onClose={handleClosePopup}
+            />
+          )}
         </LibreMap>
       </div>
 
       <LiveVideoPanel
-        openAddresses={openAddresses}
-        openIds={openIds}
+        watchCodes={watchCodes}
+        addressBySectionCode={addressBySectionCode}
         allAddresses={addresses}
         metrics={metrics}
         streamBySection={streamBySection}
         liveCodes={liveCodes}
-        onOpen={handleOpen}
+        watchedAddressIds={watchedAddressIds}
+        onOpenPopup={handleOpenPopup}
         onClose={handleClose}
       />
     </div>
   );
+}
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window === "undefined" ? false : window.innerWidth < MOBILE_BREAKPOINT,
+  );
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return isMobile;
 }
