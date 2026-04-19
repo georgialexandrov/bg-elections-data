@@ -47,7 +47,7 @@ export function LiveVideoPanel({
 
   return (
     <aside
-      className="flex w-full shrink-0 flex-col overflow-y-auto border-t border-border bg-background/95 p-3 backdrop-blur md:max-w-[60vw] md:border-l md:border-t-0"
+      className="flex w-full shrink-0 flex-col overflow-y-auto border-t border-border bg-background/95 p-3 backdrop-blur max-h-[60vh] md:max-h-none md:max-w-[60vw] md:border-l md:border-t-0"
       style={{ ["--panel-width" as string]: `${desktopWidthPx}px` }}
     >
       <div

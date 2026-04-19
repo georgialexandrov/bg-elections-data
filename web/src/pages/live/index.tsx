@@ -143,24 +143,33 @@ export default function Live() {
     <div className="flex h-full flex-col md:flex-row">
       {/* Map column */}
       <div className="relative flex-1 overflow-hidden">
-        {/* Title block + search — the search sits under a proper date-
-            stamped heading so election day reads as an event, not a
-            utility. Typography-led, Danish-poster rules: one display
-            face, one eyebrow line, no decoration. */}
-        <div className="absolute left-3 top-3 z-10 flex w-[min(460px,calc(100%-6rem))] flex-col gap-2">
-          <div className="rounded-md border border-border bg-background/95 px-3 py-2 shadow-sm backdrop-blur">
-            <p className="text-2xs font-medium uppercase tracking-eyebrow text-muted-foreground">
+        {/* Title block + search. Mobile: full-width top bar, compact,
+            inline eyebrow · title so the floating chrome doesn't eat the
+            map. Desktop: floating card with display-size title. */}
+        <div className="absolute left-3 right-3 top-3 z-10 flex flex-col gap-2 md:right-auto md:w-[min(460px,calc(100%-14rem))]">
+          <div className="rounded-md border border-border bg-background/95 px-3 py-1.5 shadow-sm backdrop-blur md:py-2">
+            {/* Mobile: single tight line */}
+            <p className="flex items-baseline gap-2 font-display text-sm font-medium leading-tight tracking-tight text-foreground md:hidden">
+              <span className="text-2xs font-medium uppercase tracking-eyebrow text-muted-foreground">
+                19.04
+              </span>
+              Народно събрание · на живо
+            </p>
+            {/* Desktop: full eyebrow + display title */}
+            <p className="hidden text-2xs font-medium uppercase tracking-eyebrow text-muted-foreground md:block">
               19 април 2026 · на живо
             </p>
-            <h1 className="mt-0.5 font-display text-xl font-medium leading-tight tracking-tight text-foreground md:text-2xl">
+            <h1 className="mt-0.5 hidden font-display font-medium leading-tight tracking-tight text-foreground md:block md:text-2xl">
               Избори за народни представители
             </h1>
           </div>
           <LiveSearch sections={sections} onPick={(s) => handleOpen(s.section_code)} />
         </div>
 
-        {/* Stats + legend chip */}
-        <div className="absolute right-3 top-3 z-10 flex flex-col items-end gap-1.5">
+        {/* Stats + legend chip — desktop only. On mobile we'd be fighting
+            the title for the top strip and the user cares about the map,
+            not a live counter. */}
+        <div className="absolute right-3 top-3 z-10 hidden flex-col items-end gap-1.5 md:flex">
           <div className="rounded-md border border-border bg-card/95 px-2.5 py-1.5 font-mono text-2xs tabular-nums text-muted-foreground shadow-sm backdrop-blur">
             {sectionsLoading ? (
               "…"
