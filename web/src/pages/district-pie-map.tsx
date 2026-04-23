@@ -990,9 +990,13 @@ export default function DistrictPieMap() {
         turnoutPct: 100,
       };
     }
-    // Bulgaria tab national: include abroad (registered == actual
-    // there) so the stat row matches the denominator used by
-    // `aggregateParties`, which keeps Velichie at 4.00% (not 3.77).
+    // Bulgaria tab national: match CIK's "Обобщена активност на гласуване
+    // за страната" formula — numerator sums voters from every section
+    // (domestic + abroad), denominator is the domestic pre-election list
+    // only. Abroad has no meaningful registered count: voters walk in
+    // and the reported `registered_voters` there is a tiny placeholder
+    // (≈60k for pe202604 vs ≈200k actual voters). Including it in the
+    // denominator drags the headline figure ~0.4 pp below CIK's.
     let registered = 0;
     let actual = 0;
     for (const r of regions) {
@@ -1000,7 +1004,6 @@ export default function DistrictPieMap() {
       actual += r.actual_voters;
     }
     for (const ac of abroadCountries) {
-      registered += ac.registered_voters;
       actual += ac.actual_voters;
     }
     return {
