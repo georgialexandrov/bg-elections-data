@@ -33,6 +33,8 @@ GEOGRAPHY_SQL = os.path.join(DATA_DIR, "geography.sql")
 # ---------------------------------------------------------------------------
 
 PARSER_MODULES = [
+    # === 2026 ===
+    "parsers.pe202604",
     # === 2024 ===
     "parsers.pe202410",
     "parsers.europe2024",

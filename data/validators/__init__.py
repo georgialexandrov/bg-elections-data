@@ -35,6 +35,7 @@ VALIDATORS = {
     'europe2024_ep':            split4.validate,
     'pe202410':                 split4.validate,
     'pe202410_ks':              split4.validate,
+    'pe202604':                 split4.validate,
 }
 
 

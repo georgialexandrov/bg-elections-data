@@ -23,7 +23,15 @@ Three independent methodologies, each producing a composite 0-1 score:
     Source: ACF (2021-2023), "Контролираният и купен вот в България"
 
 Additional binary flags (used in combined risk_score):
-    - arithmetic_error: protocol mismatch (actual_voters > received_ballots)
+    - arithmetic_error: the protocol's core identity is broken. Fires if
+      EITHER
+        (a) actual_voters ≠ invalid + null + Σ votes.total, or
+        (b) paper-voter count exceeds received paper ballots (machine
+            voters are backed out first for forms 26/30 — otherwise every
+            hybrid section trips falsely).
+      (a) catches sections like pe202410_ks 234610009 where 165 voters
+      produced zero counted votes; (b) catches sections where more
+      voters walked in than ballots were handed out.
     - vote_sum_mismatch: any party where paper + machine != total
 
 Special sections (hospitals, prisons, mobile, abroad) are excluded from scoring
@@ -530,10 +538,24 @@ def score_election(conn, election_id, prev_election_id=None):
     print(f"    {len(normal_sections)} normal + {special_count} special sections")
 
     # --- protocols + section metadata ---
+    # Per-section machine-vote and total-vote sums. Machine totals back out
+    # the machine cohort from `actual_voters` for the paper-ballot check on
+    # forms 26/30. Total votes feed the core identity check
+    # actual = invalid + null + Σ votes.total.
+    cur.execute("""
+        SELECT section_code,
+               SUM(COALESCE(machine, 0)),
+               SUM(COALESCE(total, 0))
+          FROM votes WHERE election_id = ?
+         GROUP BY section_code
+    """, (election_id,))
+    vote_sums = {row[0]: (int(row[1] or 0), int(row[2] or 0)) for row in cur.fetchall()}
+
     cur.execute("""
         SELECT pr.section_code,
                pr.received_ballots, pr.registered_voters, pr.actual_voters,
-               s.rik_code, l.ekatte
+               pr.invalid_votes, pr.null_votes,
+               pr.form_num, s.rik_code, l.ekatte
         FROM protocols pr
         JOIN sections s ON s.section_code = pr.section_code AND s.election_id = pr.election_id
         LEFT JOIN locations l ON l.id = s.location_id
@@ -545,11 +567,42 @@ def score_election(conn, election_id, prev_election_id=None):
     by_rik = defaultdict(list)
     by_ekatte = defaultdict(list)
 
-    for sc, received, registered, actual, rik, ekatte in proto_rows:
+    for sc, received, registered, actual, invalid, null_votes, form_num, rik, ekatte in proto_rows:
         if sc not in normal_sections:
             continue
         turnout = (actual / registered) if (registered and registered > 0 and actual is not None) else 0.0
-        arith_err = 1 if (received is not None and actual is not None and received > 0 and actual > received) else 0
+
+        machine_votes, total_votes = vote_sums.get(sc, (0, 0))
+
+        # (a) Core protocol identity: actual ≈ invalid + null + Σ valid.
+        # Breaks in both directions — voters recorded but zero votes, or
+        # votes recorded with zero voters. A tolerance of 5 votes matches
+        # what the per-rule validator (split4.R3.1) treats as a warning
+        # rather than an error; SIKs routinely produce ≤ 5-vote off-by-ones
+        # when hand-tallying, so we don't raise the binary flag for them.
+        IDENTITY_TOLERANCE = 5
+        identity_err = 0
+        if actual is not None and actual > 0:
+            expected = (invalid or 0) + (null_votes or 0) + total_votes
+            if abs(expected - actual) > IDENTITY_TOLERANCE:
+                identity_err = 1
+
+        # (b) Paper-voter excess: more paper voters than paper ballots
+        # handed out. For hybrid forms 26/30 subtract the machine cohort
+        # (machine voters don't consume paper ballots).
+        paper_voters = actual
+        if (
+            form_num in (26, 30)
+            and actual is not None
+            and machine_votes > 0
+        ):
+            paper_voters = max(0, actual - machine_votes)
+        paper_excess = 1 if (
+            received is not None and paper_voters is not None
+            and received > 0 and paper_voters > received
+        ) else 0
+
+        arith_err = 1 if (identity_err or paper_excess) else 0
         protocols[sc] = {"arithmetic_error": arith_err, "turnout": turnout, "rik": rik, "ekatte": ekatte}
         by_rik[rik].append((sc, turnout))
         if ekatte:
@@ -687,7 +740,11 @@ def score_election(conn, election_id, prev_election_id=None):
         s9_party_shift = acf_t[1] if acf_t else None
         s9_norm = acf_ps_norm[i]
 
-        # Composite: combined risk (all signals)
+        # Composite risk_score: average of the six always-present signals.
+        # ACF signals (s7/s8/s9) land in `acf_risk`, protocol violations
+        # in `protocol_violation_count`; both are queried separately and
+        # are not folded in here. A section can be high on ACF or rich in
+        # violations while `risk_score` stays below the anomaly threshold.
         risk = round((s1 + s2 + s3 + s4 + s5 + s6) / 6, 4)
 
         # Per-methodology composites

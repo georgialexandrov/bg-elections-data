@@ -39,10 +39,19 @@ LOCATION_CACHE_PATH = Path(__file__).parent / "location_cache.json"
 
 
 def normalize_address(addr: str) -> str:
-    """Normalize address for dedup: uppercase, collapse whitespace, strip punctuation noise."""
+    """Normalize address for dedup: uppercase, collapse whitespace, strip punctuation noise.
+
+    pe202604 tightened CIK's address formatting (dropped spaces around dots —
+    `ул.Шипка` vs `ул. Шипка`, `ГР.АСЕНОВГРАД` vs `ГР. АСЕНОВГРАД`). To keep
+    the same polling-place resolving to the same dedup key across exports we
+    strip whitespace on both sides of every `.` before collapsing.
+    """
     s = addr.upper().strip()
-    # Remove city/village prefix — "ГР. БАНСКО " or "С. ГОСТУН, "
-    s = re.sub(r"^(ГР\.?\s+|С\.?\s+|МИН\.?\s+С\.?\s+|ОБЩ\.?\s+)[А-ЯA-Z\-]+[,\s]*", "", s)
+    # Tighten spacing around dots first — so "ГР. X" / "ГР.X" / "ул. X" / "ул.X"
+    # collapse to the same shape.
+    s = re.sub(r"\s*\.\s*", ".", s)
+    # Remove city/village prefix — "ГР.БАНСКО," or "С.ГОСТУН,"
+    s = re.sub(r"^(ГР\.|С\.|МИН\.С\.|ОБЩ\.)[А-ЯA-Z\-]+[,\s]*", "", s)
     # Normalize quotes: replace all quote variants with nothing
     s = re.sub(r'["""\'„\u201c\u201d\u201e]', '', s)
     # Normalize № spacing
