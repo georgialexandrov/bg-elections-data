@@ -412,39 +412,46 @@ function aggregateRegionParties(
   return result;
 }
 
-// Build the MapLibre fill-opacity expression based on active filters
-function buildOpacityExpression(
+// Fill-opacity levels. MapLibre only animates paint transitions between
+// constant values — a data-driven `case` expression snaps instantly (see
+// TransitioningPropertyValue in maplibre-gl). So instead of one layer
+// with a per-feature opacity expression, the base layer carries a single
+// constant opacity that dims as a whole, and a "focus" layer on top
+// re-draws only the tiles that should stand out (filtered by party
+// and/or region) at its own constant opacity. Both fade natively.
+const TILE_OPACITY = 0.9;
+const TILE_OPACITY_PARTY_DIM = 0.06;
+const TILE_OPACITY_REGION_DIM = 0.12;
+const FOCUS_OPACITY_PARTY = 1;
+const FOCUS_OPACITY_REGION = 0.9;
+// Two focus layers so switching party A → B cross-fades: A fades out on
+// one layer while B fades in on the other.
+const TILE_FOCUS_LAYERS = ["region-tiles-focus-a", "region-tiles-focus-b"] as const;
+const FADE_MS = 250;
+const EMPTY_FILTER: MapLibreGL.FilterSpecification = ["boolean", false];
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+/** Which tiles the focus layer should re-draw on top of the dimmed base.
+ *  null = nothing focused, base layer at rest. */
+function buildFocusFilter(
   activeParty: string | null,
   selectedRegionId: number | null,
-): MapLibreGL.ExpressionSpecification | number {
+): MapLibreGL.FilterSpecification | null {
   if (activeParty && selectedRegionId != null) {
-    return [
-      "case",
-      ["all",
-        ["==", ["get", "party_name"], activeParty],
-        ["==", ["get", "region_id"], selectedRegionId],
-      ],
-      1,
-      0.06,
-    ];
-  }
-  if (activeParty) {
-    return [
-      "case",
+    return ["all",
       ["==", ["get", "party_name"], activeParty],
-      1,
-      0.06,
-    ];
-  }
-  if (selectedRegionId != null) {
-    return [
-      "case",
       ["==", ["get", "region_id"], selectedRegionId],
-      0.9,
-      0.12,
     ];
   }
-  return 0.9;
+  if (activeParty) return ["==", ["get", "party_name"], activeParty];
+  if (selectedRegionId != null) return ["==", ["get", "region_id"], selectedRegionId];
+  return null;
 }
 
 function TileDensityLayer({
@@ -542,39 +549,125 @@ function TileDensityLayer({
     };
   }, [map, isLoaded, regions]);
 
-  // Update fill-opacity reactively
-  useEffect(() => {
-    if (!map || !isLoaded || !map.getLayer(TILE_LAYER)) return;
-    const expr = buildOpacityExpression(activeParty, selectedRegionId);
-    map.setPaintProperty(TILE_LAYER, "fill-opacity", expr);
-  }, [map, isLoaded, activeParty, selectedRegionId]);
+  // Paint state for the base + focus layers lives in refs so the fade
+  // timers below always act on the latest target, not a stale closure.
+  // `visibleRef` stays false until the first data is in the source.
+  const visibleRef = useRef(false);
+  const paintTargetRef = useRef({ activeParty, selectedRegionId });
+  paintTargetRef.current = { activeParty, selectedRegionId };
+  const focusRef = useRef<{ idx: number; key: string | null }>({ idx: 0, key: null });
+  const focusClearTimers = useRef<(ReturnType<typeof setTimeout> | undefined)[]>([]);
 
+  const applyPaint = useCallback(() => {
+    if (!map || !map.getLayer(TILE_LAYER)) return;
+    const { activeParty: party, selectedRegionId: regionId } = paintTargetRef.current;
+    const visible = visibleRef.current;
+    const baseOpacity = !visible
+      ? 0
+      : party
+        ? TILE_OPACITY_PARTY_DIM
+        : regionId != null
+          ? TILE_OPACITY_REGION_DIM
+          : TILE_OPACITY;
+    map.setPaintProperty(TILE_LAYER, "fill-opacity", baseOpacity);
+
+    const filter = buildFocusFilter(party, regionId);
+    const key = filter ? JSON.stringify(filter) : null;
+    const focusOpacity = !visible ? 0 : party ? FOCUS_OPACITY_PARTY : FOCUS_OPACITY_REGION;
+    const focus = focusRef.current;
+    if (key === focus.key) {
+      if (key) map.setPaintProperty(TILE_FOCUS_LAYERS[focus.idx], "fill-opacity", focusOpacity);
+      return;
+    }
+    // Outgoing focus fades out but keeps its filter until it's gone,
+    // then the filter is emptied so the layer is clean for reuse.
+    if (focus.key) {
+      const outIdx = focus.idx;
+      map.setPaintProperty(TILE_FOCUS_LAYERS[outIdx], "fill-opacity", 0);
+      clearTimeout(focusClearTimers.current[outIdx]);
+      focusClearTimers.current[outIdx] = setTimeout(() => {
+        if (map.getLayer(TILE_FOCUS_LAYERS[outIdx])) {
+          map.setFilter(TILE_FOCUS_LAYERS[outIdx], EMPTY_FILTER);
+        }
+      }, FADE_MS + 50);
+    }
+    let idx = focus.idx;
+    if (filter) {
+      idx = focus.key ? 1 - focus.idx : focus.idx;
+      clearTimeout(focusClearTimers.current[idx]);
+      map.setFilter(TILE_FOCUS_LAYERS[idx], filter);
+      map.setPaintProperty(TILE_FOCUS_LAYERS[idx], "fill-opacity", focusOpacity);
+    }
+    focusRef.current = { idx, key };
+  }, [map]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    applyPaint();
+  }, [isLoaded, applyPaint, activeParty, selectedRegionId]);
+
+  // Source + layers are created once per map; data changes go through
+  // setData so the layer keeps its paint state (and its place below the
+  // border layer) instead of being torn down and re-added.
   useEffect(() => {
     if (!map || !isLoaded) return;
-
-    const existing = map.getSource(TILE_SOURCE);
-    if (existing) {
-      (existing as MapLibreGL.GeoJSONSource).setData(tileData as any);
-    } else {
-      map.addSource(TILE_SOURCE, { type: "geojson", data: tileData as any });
-      map.addLayer({
+    const transition = { duration: prefersReducedMotion() ? 0 : FADE_MS, delay: 0 };
+    const beforeId = map.getLayer(BORDER_LAYER) ? BORDER_LAYER : undefined;
+    map.addSource(TILE_SOURCE, {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+    });
+    map.addLayer(
+      {
         id: TILE_LAYER,
         type: "fill",
         source: TILE_SOURCE,
         paint: {
           "fill-color": ["get", "color"],
-          "fill-opacity": 0.9,
+          "fill-opacity": 0,
+          "fill-opacity-transition": transition,
         },
-      });
+      },
+      beforeId,
+    );
+    for (const id of TILE_FOCUS_LAYERS) {
+      map.addLayer(
+        {
+          id,
+          type: "fill",
+          source: TILE_SOURCE,
+          filter: EMPTY_FILTER,
+          paint: {
+            "fill-color": ["get", "color"],
+            "fill-opacity": 0,
+            "fill-opacity-transition": transition,
+          },
+        },
+        beforeId,
+      );
     }
-
+    const timers = focusClearTimers.current;
     return () => {
+      timers.forEach((t) => clearTimeout(t));
+      visibleRef.current = false;
+      focusRef.current = { idx: 0, key: null };
       try {
-        if (map.getLayer(TILE_LAYER)) map.removeLayer(TILE_LAYER);
+        for (const id of [...TILE_FOCUS_LAYERS, TILE_LAYER]) {
+          if (map.getLayer(id)) map.removeLayer(id);
+        }
         if (map.getSource(TILE_SOURCE)) map.removeSource(TILE_SOURCE);
       } catch { /* destroyed */ }
     };
-  }, [map, isLoaded, tileData]);
+  }, [map, isLoaded]);
+
+  useEffect(() => {
+    if (!map || !isLoaded) return;
+    const source = map.getSource(TILE_SOURCE) as MapLibreGL.GeoJSONSource | undefined;
+    if (!source) return;
+    source.setData(tileData as any);
+    visibleRef.current = true;
+    applyPaint();
+  }, [map, isLoaded, tileData, applyPaint]);
 
   useEffect(() => {
     if (!map || !isLoaded) return;
