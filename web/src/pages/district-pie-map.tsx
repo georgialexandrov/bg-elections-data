@@ -13,6 +13,7 @@ import {
 import type { GeoLevel } from "@/lib/api/geo-results.js";
 import type { AbroadCountry, Election, GeoArea } from "@/lib/api/types.js";
 import { AbroadMap } from "@/components/map/abroad-map.js";
+import { arrangeCells } from "./tile-arrangement.js";
 
 // Local alias — district-pie-map narrows the geometry to polygon variants.
 type GeoRegion = Omit<GeoArea, "geo"> & {
@@ -64,18 +65,11 @@ const BLANK_STYLE: MapLibreGL.StyleSpecification = {
   ],
 };
 
-function seededRandom(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s * 1664525 + 1013904223) & 0xffffffff;
-    return (s >>> 0) / 0xffffffff;
-  };
-}
-
 function buildTileFeatures(
   region: GeoRegion,
   showNonVoters: boolean,
   gridStep: number,
+  partyRank: Map<string, number>,
 ): GeoJSON.Feature[] {
   const geo = region.geo;
   if (!geo) return [];
@@ -133,7 +127,12 @@ function buildTileFeatures(
     }
   }
 
-  slices.sort((a, b) => b.share - a.share);
+  // Same block order in every region — non-voters, then parties by
+  // national ranking, "Други" last — so each colour takes roughly the same
+  // threshold band everywhere and the stipple continues across borders.
+  const rankOf = (s: Slice) =>
+    s.color === NON_VOTER_COLOR ? -1 : partyRank.get(s.label) ?? Number.MAX_VALUE;
+  slices.sort((a, b) => rankOf(a) - rankOf(b) || b.share - a.share);
 
   const totalCells = cells.length;
   const colorAssignments: string[] = [];
@@ -151,16 +150,11 @@ function buildTileFeatures(
     remaining -= actual;
   }
 
-  const rng = seededRandom(region.id * 7919);
-  for (let i = colorAssignments.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [colorAssignments[i], colorAssignments[j]] = [colorAssignments[j], colorAssignments[i]];
-    [labelAssignments[i], labelAssignments[j]] = [labelAssignments[j], labelAssignments[i]];
-  }
+  const order = arrangeCells(cells, stepX, stepY);
 
   const features: GeoJSON.Feature[] = [];
   for (let i = 0; i < cells.length && i < colorAssignments.length; i++) {
-    const [cx, cy] = cells[i];
+    const [cx, cy] = cells[order[i]];
     features.push({
       type: "Feature",
       geometry: {
@@ -205,9 +199,18 @@ function computeAllTiles(
   const step = getGridStep(level);
   // Largest bbox first → smallest renders last (on top).
   const ordered = [...regions].sort((a, b) => bboxArea(b) - bboxArea(a));
+  const votesByParty = new Map<string, number>();
+  for (const r of regions) {
+    for (const p of r.parties) {
+      votesByParty.set(p.name, (votesByParty.get(p.name) ?? 0) + p.votes);
+    }
+  }
+  const partyRank = new Map(
+    [...votesByParty].sort((a, b) => b[1] - a[1]).map(([name], i) => [name, i]),
+  );
   const allFeatures: GeoJSON.Feature[] = [];
   for (const r of ordered) {
-    allFeatures.push(...buildTileFeatures(r, showNonVoters, step));
+    allFeatures.push(...buildTileFeatures(r, showNonVoters, step, partyRank));
   }
   return { type: "FeatureCollection", features: allFeatures };
 }
