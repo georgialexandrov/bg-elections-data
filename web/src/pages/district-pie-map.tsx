@@ -460,6 +460,41 @@ function buildFocusFilter(
   return null;
 }
 
+/** Calls `cb` once a GeoJSON source has re-tiled after `setData`. The
+ *  "content" sourcedata event marks the worker update; tiles finish
+ *  loading on later frames, so poll isSourceLoaded on render after it.
+ *  Falls back to a timeout so a missed event can't leave tiles hidden. */
+function onSourceReloaded(
+  map: MapLibreGL.Map,
+  sourceId: string,
+  cb: () => void,
+): () => void {
+  let sawContent = false;
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    stop();
+    cb();
+  };
+  const onData = (e: MapLibreGL.MapSourceDataEvent) => {
+    if (e.sourceId === sourceId && e.sourceDataType === "content") sawContent = true;
+  };
+  const onRender = () => {
+    if (sawContent && map.getSource(sourceId) && map.isSourceLoaded(sourceId)) finish();
+  };
+  const fallback = setTimeout(finish, 1500);
+  const stop = () => {
+    done = true;
+    clearTimeout(fallback);
+    map.off("sourcedata", onData);
+    map.off("render", onRender);
+  };
+  map.on("sourcedata", onData);
+  map.on("render", onRender);
+  return stop;
+}
+
 function TileDensityLayer({
   regions,
   showNonVoters,
@@ -588,7 +623,8 @@ function TileDensityLayer({
 
   // Paint state for the base + focus layers lives in refs so the fade
   // timers below always act on the latest target, not a stale closure.
-  // `visibleRef` stays false until the first data is in the source.
+  // `visibleRef` is false while tiles are being swapped (first load,
+  // Негласували toggle, data change) so the whole layer fades out → in.
   const visibleRef = useRef(false);
   const paintTargetRef = useRef({ activeParty, selectedRegionId });
   paintTargetRef.current = { activeParty, selectedRegionId };
@@ -607,6 +643,9 @@ function TileDensityLayer({
           ? TILE_OPACITY_REGION_DIM
           : TILE_OPACITY;
     map.setPaintProperty(TILE_LAYER, "fill-opacity", baseOpacity);
+    if (visible && map.getLayer(BORDER_LAYER)) {
+      map.setPaintProperty(BORDER_LAYER, "line-opacity", 1);
+    }
 
     const filter = buildFocusFilter(party, regionId);
     const key = filter ? JSON.stringify(filter) : null;
@@ -697,13 +736,44 @@ function TileDensityLayer({
     };
   }, [map, isLoaded]);
 
+  // Swap tile data with a dip: fade the old tiles out while the worker
+  // re-tiles the new data, then fade back in once both are done. Waiting
+  // for the reload matters — fading in against the old tiles would make
+  // the new ones pop in partway through. Under reduced motion the old
+  // tiles simply stay until the new ones replace them.
   useEffect(() => {
     if (!map || !isLoaded) return;
     const source = map.getSource(TILE_SOURCE) as MapLibreGL.GeoJSONSource | undefined;
     if (!source) return;
-    source.setData(tileData as any);
-    visibleRef.current = true;
+    const wasVisible = visibleRef.current;
+    if (wasVisible && prefersReducedMotion()) {
+      source.setData(tileData as any);
+      return;
+    }
+    visibleRef.current = false;
     applyPaint();
+    source.setData(tileData as any);
+    let reloaded = false;
+    let fadedOut = !wasVisible;
+    const show = () => {
+      if (!reloaded || !fadedOut) return;
+      visibleRef.current = true;
+      applyPaint();
+    };
+    const stopWaiting = onSourceReloaded(map, TILE_SOURCE, () => {
+      reloaded = true;
+      show();
+    });
+    const timer = wasVisible
+      ? setTimeout(() => {
+          fadedOut = true;
+          show();
+        }, FADE_MS)
+      : undefined;
+    return () => {
+      clearTimeout(timer);
+      stopWaiting();
+    };
   }, [map, isLoaded, tileData, applyPaint]);
 
   useEffect(() => {
@@ -718,7 +788,17 @@ function TileDensityLayer({
         id: BORDER_LAYER,
         type: "line",
         source: BORDER_SOURCE,
-        paint: { "line-color": "#666", "line-width": 1 },
+        paint: {
+          "line-color": "#666",
+          "line-width": 1,
+          // Borders fade in with the first tiles instead of popping in
+          // ahead of them; later tile swaps leave them at 1.
+          "line-opacity": visibleRef.current ? 1 : 0,
+          "line-opacity-transition": {
+            duration: prefersReducedMotion() ? 0 : FADE_MS,
+            delay: 0,
+          },
+        },
       });
     }
 
