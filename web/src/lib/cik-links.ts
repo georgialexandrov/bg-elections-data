@@ -95,10 +95,9 @@ const CIK_ELECTION_MAP: Record<number, CikConfig> = {
   // pe202604: same shape as pe202410. Live-stream video is available per section
   // via sections.video_url (populated from the evideo.bg scraper).
   19: { prefix: "pe202604", type: "p", protoSuffix: "auto", scanSuffix: ".0", dataEl: 64, areaLen: 2 },
-  // pvr202610: president-only, one site per round, dataEl 256 as in pvrns2021.
-  // Ids assume import right after pe202604 (import_pvr202610.py warns otherwise).
-  // UNVERIFIED until the results site is up — mirror of build_protocol_urls.py.
-  20: { prefix: "pvr202610/tur1", type: "p", protoSuffix: "auto", scanSuffix: ".0", dataEl: 256, areaLen: 2 },
+  // pvr202610: president-only, dataEl 256. Round 1 has no /tur1/ (verified
+  // 27.10.2026); round 2's /tur2/ is a guess. Mirror of build_protocol_urls.py.
+  20: { prefix: "pvr202610", type: "p", protoSuffix: "auto", scanSuffix: ".0", dataEl: 256, areaLen: 2 },
   21: { prefix: "pvr202610/tur2", type: "p", protoSuffix: "auto", scanSuffix: ".0", dataEl: 256, areaLen: 2 },
 };
 

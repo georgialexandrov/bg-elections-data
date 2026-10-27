@@ -84,10 +84,10 @@ ELECTION_CONFIG: dict[str, CikConfig] = {
     "pi2021_jul":               CikConfig("pi2021_07",           "p",  64,  "0",     2),
     # pi2021: dataEl=64 uses old array format (no suffix objects). No suffix in link.
     "pi2021_apr":               CikConfig("pi2021",              "p",  64,  "none",  2),
-    # pvr202610: president-only, one site per round. dataEl 256 = president (same
-    # as pvrns2021). UNVERIFIED until results.cik.bg/pvr202610 is checked —
-    # confirm prefix + suffix against tur{N}/protokoli/data.js HAS_PROTO.
-    "pvr202610_r1":             CikConfig("pvr202610/tur1",      "p",  256, "auto",  2),
+    # pvr202610: dataEl 256 = president. Round 1 has no /tur1/ — verified
+    # 27.10.2026 (010300011 has suffixes .0/.1/.2 and scan .0.pdf).
+    # Round 2 prefix is a guess (pvrns2021 used /tur2/) — check when published.
+    "pvr202610_r1":             CikConfig("pvr202610",           "p",  256, "auto",  2),
     "pvr202610_r2":             CikConfig("pvr202610/tur2",      "p",  256, "auto",  2),
 }
 
