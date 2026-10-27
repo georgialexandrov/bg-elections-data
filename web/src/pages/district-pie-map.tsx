@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { trackEvent } from "@/lib/analytics.js";
 import { Map as MapComponent, useMap, MapControls } from "@/components/ui/map";
@@ -814,6 +814,47 @@ interface LegendStats {
   turnoutPct: number;
 }
 
+/** Thin share bar under a legend row. Width changes (switching region,
+ *  hover preview) are animated with WAAPI from whatever width is on
+ *  screen right now, rather than a CSS transition: React moves keyed rows
+ *  in the DOM when the sort order changes, and a moved element loses its
+ *  CSS transition. Starting from the computed width also keeps rapid
+ *  hover-scrubbing continuous instead of restarting from a stale value. */
+function ShareBar({ pct, color }: { pct: number; color: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const prevWidth = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const from = prevWidth.current;
+    const to = `${pct}%`;
+    if (from != null && from !== to && !prefersReducedMotion()) {
+      // Mid-animation, the computed width is the on-screen one; at rest
+      // it's already the new target, so fall back to the last target.
+      const running = el.getAnimations();
+      const start = running.length > 0 ? getComputedStyle(el).width : from;
+      running.forEach((a) => a.cancel());
+      el.animate([{ width: start }, { width: to }], {
+        duration: 350,
+        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+      });
+    }
+    prevWidth.current = to;
+  }, [pct]);
+  return (
+    <span
+      aria-hidden
+      className="pointer-events-none absolute right-2 bottom-0.5 left-[26px] h-0.5 overflow-hidden rounded-full"
+    >
+      <span
+        ref={ref}
+        className="block h-full rounded-full opacity-80"
+        style={{ width: `${pct}%`, background: color }}
+      />
+    </span>
+  );
+}
+
 function PartyLegend({
   parties,
   title,
@@ -879,8 +920,8 @@ function PartyLegend({
               onClick={interactive ? () => onTap(p.name) : undefined}
               onMouseEnter={interactive ? () => onHover(p.name) : undefined}
               onMouseLeave={interactive ? () => onHover(null) : undefined}
-              className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left transition-opacity ${rowClass} ${
-                isMuted ? "opacity-30" : ""
+              className={`relative flex w-full items-center gap-2 rounded px-2 pt-1 pb-1.5 text-left transition-opacity duration-200 ease-out ${rowClass} ${
+                isMuted ? "opacity-35" : ""
               }`}
             >
               <span
@@ -908,6 +949,9 @@ function PartyLegend({
               >
                 {p.pctCik !== null ? `${p.pctCik.toFixed(2)}%` : "—"}
               </span>
+              {/* The bar draws the bold CIK share, so rows without one
+                  (Негласували, не подкрепям никого) get no bar. */}
+              {p.pctCik !== null && <ShareBar pct={p.pctCik} color={p.color} />}
             </button>
           );
         })}
