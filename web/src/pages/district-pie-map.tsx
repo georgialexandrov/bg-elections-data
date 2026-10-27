@@ -45,6 +45,14 @@ const BORDER_SOURCE = "region-borders";
 const BORDER_LAYER = "region-borders-line";
 const DISTRICT_SOURCE = "district-borders";
 const DISTRICT_LAYER = "district-borders-line";
+// Hovered/selected outline, drawn from the region border source and
+// filtered to the focused ids: a soft shadow, a dark casing and a white
+// inner line on top. Reads clearly over any tile colour without the
+// harshness of a single thick black stroke.
+const FOCUS_GLOW_LAYER = "region-focus-glow";
+const FOCUS_CASING_LAYER = "region-focus-casing";
+const FOCUS_INNER_LAYER = "region-focus-inner";
+const FOCUS_LAYERS = [FOCUS_GLOW_LAYER, FOCUS_CASING_LAYER, FOCUS_INNER_LAYER];
 const OTHER_COLOR = "#999";
 
 // Municipality/МИР separators are drawn as soft white seams between
@@ -72,6 +80,25 @@ const DISTRICT_WIDTH: MapLibreGL.ExpressionSpecification = [
   8, 1.4,
   11, 2,
   14, 2.5,
+];
+
+const FOCUS_CASING_WIDTH: MapLibreGL.ExpressionSpecification = [
+  "interpolate", ["linear"], ["zoom"],
+  6, 3,
+  11, 4.5,
+  14, 6,
+];
+const FOCUS_INNER_WIDTH: MapLibreGL.ExpressionSpecification = [
+  "interpolate", ["linear"], ["zoom"],
+  6, 1,
+  11, 1.5,
+  14, 2,
+];
+const FOCUS_GLOW_WIDTH: MapLibreGL.ExpressionSpecification = [
+  "interpolate", ["linear"], ["zoom"],
+  6, 8,
+  11, 12,
+  14, 16,
 ];
 const MIN_SHARE = 0.02;
 /** Web Mercator stretches a degree of latitude by 1/cos(lat), so a
@@ -848,10 +875,52 @@ function TileDensityLayer({
       // Keep the region seams under the oblast outlines when the region
       // set changes (tab switch) and this layer is re-added.
       }, map.getLayer(DISTRICT_LAYER) ? DISTRICT_LAYER : undefined);
+
+      const none: MapLibreGL.FilterSpecification = ["==", ["get", "id"], -1];
+      const lineLayout = { "line-join": "round", "line-cap": "round" } as const;
+      map.addLayer({
+        id: FOCUS_GLOW_LAYER,
+        type: "line",
+        source: BORDER_SOURCE,
+        filter: none,
+        layout: lineLayout,
+        paint: {
+          "line-color": "#000",
+          "line-width": FOCUS_GLOW_WIDTH,
+          "line-blur": 6,
+          "line-opacity": 0.12,
+        },
+      });
+      map.addLayer({
+        id: FOCUS_CASING_LAYER,
+        type: "line",
+        source: BORDER_SOURCE,
+        filter: none,
+        layout: lineLayout,
+        paint: {
+          "line-color": "#1a1a1a",
+          "line-width": FOCUS_CASING_WIDTH,
+          "line-opacity": 0.85,
+        },
+      });
+      map.addLayer({
+        id: FOCUS_INNER_LAYER,
+        type: "line",
+        source: BORDER_SOURCE,
+        filter: none,
+        layout: lineLayout,
+        paint: {
+          "line-color": "#ffffff",
+          "line-width": FOCUS_INNER_WIDTH,
+        },
+      });
     }
 
     return () => {
       try {
+        for (const id of FOCUS_LAYERS) {
+          if (map.getLayer(id)) map.removeLayer(id);
+        }
         if (map.getLayer(BORDER_LAYER)) map.removeLayer(BORDER_LAYER);
         if (map.getSource(BORDER_SOURCE)) map.removeSource(BORDER_SOURCE);
       } catch { /* destroyed */ }
@@ -877,7 +946,7 @@ function TileDensityLayer({
           "line-opacity": DISTRICT_OPACITY,
           "line-blur": 0.3,
         },
-      });
+      }, map.getLayer(FOCUS_GLOW_LAYER) ? FOCUS_GLOW_LAYER : undefined);
     }
 
     return () => {
@@ -890,46 +959,27 @@ function TileDensityLayer({
 
   // Highlight the hovered municipality's outline so the user can see
   // *where* the tooltip data lives, even while mousing over tiles far
-  // from the boundary. Selected regions also get a thicker outline.
+  // from the boundary. The selected region keeps the full outline; a
+  // hovered one gets a lighter casing so the two stay distinguishable.
   useEffect(() => {
-    if (!map || !isLoaded || !map.getLayer(BORDER_LAYER)) return;
-    const hasFocus = hoveredRegionId != null || selectedRegionId != null;
-    const focusWidth = (
-      hovered: number,
-      selected: number,
-      rest: number,
-    ): MapLibreGL.ExpressionSpecification => [
-      "case",
-      ["==", ["get", "id"], hoveredRegionId ?? -1],
-      hovered,
-      ["==", ["get", "id"], selectedRegionId ?? -1],
-      selected,
-      rest,
+    if (!map || !isLoaded || !map.getLayer(FOCUS_CASING_LAYER)) return;
+    const ids = [hoveredRegionId, selectedRegionId].filter(
+      (id): id is number => id != null,
+    );
+    const filter: MapLibreGL.FilterSpecification = [
+      "in", ["get", "id"], ["literal", ids],
     ];
-    // Zoom expressions must sit at the top level, so the per-region case
-    // is evaluated at each interpolation stop instead.
-    const widthExpr: MapLibreGL.ExpressionSpecification = hasFocus
-      ? [
-          "interpolate", ["linear"], ["zoom"],
-          6, focusWidth(2.5, 2, 0.6),
-          8, focusWidth(2.5, 2, 1),
-          11, focusWidth(3.5, 3, 2),
-          14, focusWidth(4, 3.5, 3),
-        ]
-      : BORDER_WIDTH;
-    const colorExpr: MapLibreGL.ExpressionSpecification | string = hasFocus
-      ? [
-          "case",
-          ["==", ["get", "id"], hoveredRegionId ?? -1],
-          "#111",
-          ["==", ["get", "id"], selectedRegionId ?? -1],
-          "#333",
-          BORDER_COLOR,
-        ]
-      : BORDER_COLOR;
-    map.setPaintProperty(BORDER_LAYER, "line-width", widthExpr);
-    map.setPaintProperty(BORDER_LAYER, "line-color", colorExpr);
-  }, [map, isLoaded, hoveredRegionId, selectedRegionId]);
+    for (const id of FOCUS_LAYERS) map.setFilter(id, filter);
+    const isSelected: MapLibreGL.ExpressionSpecification = [
+      "==", ["get", "id"], selectedRegionId ?? -1,
+    ];
+    map.setPaintProperty(FOCUS_CASING_LAYER, "line-color", [
+      "case", isSelected, "#1a1a1a", "#4a4a4a",
+    ]);
+    map.setPaintProperty(FOCUS_CASING_LAYER, "line-opacity", [
+      "case", isSelected, 0.85, 0.7,
+    ]);
+  }, [map, isLoaded, borderData, hoveredRegionId, selectedRegionId]);
 
   useEffect(() => {
     if (!map || !isLoaded) return;
