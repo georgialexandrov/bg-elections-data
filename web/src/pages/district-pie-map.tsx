@@ -44,6 +44,20 @@ const TILE_LAYER = "region-tiles-fill";
 const BORDER_SOURCE = "region-borders";
 const BORDER_LAYER = "region-borders-line";
 const OTHER_COLOR = "#999";
+
+// Municipality/МИР separators are drawn as soft white seams between
+// tile fields rather than dark ink, so the tiles stay the figure and
+// the borders read as gaps. Width grows with zoom: hairlines on the
+// national view, a clear seam once tiles are large.
+const BORDER_COLOR = "#ffffff";
+const BORDER_OPACITY = 0.85;
+const BORDER_WIDTH: MapLibreGL.ExpressionSpecification = [
+  "interpolate", ["linear"], ["zoom"],
+  6, 0.6,
+  8, 1,
+  11, 2,
+  14, 3,
+];
 const MIN_SHARE = 0.02;
 /** Web Mercator stretches a degree of latitude by 1/cos(lat), so a
  *  0.02°×0.02° cell renders ~36% taller than wide over Bulgaria. The
@@ -644,7 +658,7 @@ function TileDensityLayer({
           : TILE_OPACITY;
     map.setPaintProperty(TILE_LAYER, "fill-opacity", baseOpacity);
     if (visible && map.getLayer(BORDER_LAYER)) {
-      map.setPaintProperty(BORDER_LAYER, "line-opacity", 1);
+      map.setPaintProperty(BORDER_LAYER, "line-opacity", BORDER_OPACITY);
     }
 
     const filter = buildFocusFilter(party, regionId);
@@ -788,16 +802,18 @@ function TileDensityLayer({
         id: BORDER_LAYER,
         type: "line",
         source: BORDER_SOURCE,
+        layout: { "line-join": "round", "line-cap": "round" },
         paint: {
-          "line-color": "#666",
-          "line-width": 1,
-          // Borders fade in with the first tiles instead of popping in
-          // ahead of them; later tile swaps leave them at 1.
-          "line-opacity": visibleRef.current ? 1 : 0,
+          "line-color": BORDER_COLOR,
+          "line-width": BORDER_WIDTH,
+          // Seams fade in with the first tiles instead of popping in
+          // ahead of them; later tile swaps leave them at rest opacity.
+          "line-opacity": visibleRef.current ? BORDER_OPACITY : 0,
           "line-opacity-transition": {
             duration: prefersReducedMotion() ? 0 : FADE_MS,
             delay: 0,
           },
+          "line-blur": 0.3,
         },
       });
     }
@@ -815,28 +831,40 @@ function TileDensityLayer({
   // from the boundary. Selected regions also get a thicker outline.
   useEffect(() => {
     if (!map || !isLoaded || !map.getLayer(BORDER_LAYER)) return;
-    const widthExpr: MapLibreGL.ExpressionSpecification | number =
-      hoveredRegionId != null || selectedRegionId != null
-        ? [
-            "case",
-            ["==", ["get", "id"], hoveredRegionId ?? -1],
-            2.5,
-            ["==", ["get", "id"], selectedRegionId ?? -1],
-            2,
-            0.6,
-          ]
-        : 1;
-    const colorExpr: MapLibreGL.ExpressionSpecification | string =
-      hoveredRegionId != null || selectedRegionId != null
-        ? [
-            "case",
-            ["==", ["get", "id"], hoveredRegionId ?? -1],
-            "#111",
-            ["==", ["get", "id"], selectedRegionId ?? -1],
-            "#333",
-            "#777",
-          ]
-        : "#666";
+    const hasFocus = hoveredRegionId != null || selectedRegionId != null;
+    const focusWidth = (
+      hovered: number,
+      selected: number,
+      rest: number,
+    ): MapLibreGL.ExpressionSpecification => [
+      "case",
+      ["==", ["get", "id"], hoveredRegionId ?? -1],
+      hovered,
+      ["==", ["get", "id"], selectedRegionId ?? -1],
+      selected,
+      rest,
+    ];
+    // Zoom expressions must sit at the top level, so the per-region case
+    // is evaluated at each interpolation stop instead.
+    const widthExpr: MapLibreGL.ExpressionSpecification = hasFocus
+      ? [
+          "interpolate", ["linear"], ["zoom"],
+          6, focusWidth(2.5, 2, 0.6),
+          8, focusWidth(2.5, 2, 1),
+          11, focusWidth(3.5, 3, 2),
+          14, focusWidth(4, 3.5, 3),
+        ]
+      : BORDER_WIDTH;
+    const colorExpr: MapLibreGL.ExpressionSpecification | string = hasFocus
+      ? [
+          "case",
+          ["==", ["get", "id"], hoveredRegionId ?? -1],
+          "#111",
+          ["==", ["get", "id"], selectedRegionId ?? -1],
+          "#333",
+          BORDER_COLOR,
+        ]
+      : BORDER_COLOR;
     map.setPaintProperty(BORDER_LAYER, "line-width", widthExpr);
     map.setPaintProperty(BORDER_LAYER, "line-color", colorExpr);
   }, [map, isLoaded, hoveredRegionId, selectedRegionId]);
