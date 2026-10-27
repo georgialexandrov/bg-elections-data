@@ -518,6 +518,26 @@ const NATIONAL_PADDING = { top: 96, bottom: 32, left: 24, right: 24 };
 const REGION_PADDING = { top: 112, bottom: 64, left: 64, right: 64 };
 const EMPTY_FILTER: MapLibreGL.FilterSpecification = ["boolean", false];
 
+// Bottom → top. Every results-map layer is inserted through
+// `stackBeforeId`, so a layer re-added later (tab switch, election
+// change, Негласували rebuild) lands in its own slot instead of on top.
+const LAYER_STACK: readonly string[] = [
+  TILE_LAYER,
+  ...TILE_FOCUS_LAYERS,
+  TILE_GAP_LAYER,
+  BORDER_LAYER,
+  DISTRICT_LAYER,
+  FOCUS_GLOW_LAYER,
+  FOCUS_CASING_LAYER,
+  FOCUS_INNER_LAYER,
+];
+
+/** The nearest layer above `id` in LAYER_STACK that is already on the map. */
+function stackBeforeId(map: MapLibreGL.Map, id: string): string | undefined {
+  const above = LAYER_STACK.slice(LAYER_STACK.indexOf(id) + 1);
+  return above.find((layerId) => map.getLayer(layerId));
+}
+
 function prefersReducedMotion(): boolean {
   return (
     typeof window !== "undefined" &&
@@ -785,7 +805,6 @@ function TileDensityLayer({
   useEffect(() => {
     if (!map || !isLoaded) return;
     const transition = { duration: prefersReducedMotion() ? 0 : FADE_MS, delay: 0 };
-    const beforeId = map.getLayer(BORDER_LAYER) ? BORDER_LAYER : undefined;
     map.addSource(TILE_SOURCE, {
       type: "geojson",
       data: { type: "FeatureCollection", features: [] },
@@ -805,7 +824,7 @@ function TileDensityLayer({
           "fill-antialias": false,
         },
       },
-      beforeId,
+      stackBeforeId(map, TILE_LAYER),
     );
     for (const id of TILE_FOCUS_LAYERS) {
       map.addLayer(
@@ -821,7 +840,7 @@ function TileDensityLayer({
             "fill-antialias": false,
           },
         },
-        beforeId,
+        stackBeforeId(map, id),
       );
     }
     // Gutter sits over every tile fill (base and both focus layers) so
@@ -836,7 +855,7 @@ function TileDensityLayer({
           "line-width": 0,
         },
       },
-      beforeId,
+      stackBeforeId(map, TILE_GAP_LAYER),
     );
     const timers = focusClearTimers.current;
     return () => {
@@ -928,7 +947,7 @@ function TileDensityLayer({
         },
       // Keep the region seams under the oblast outlines when the region
       // set changes (tab switch) and this layer is re-added.
-      }, map.getLayer(DISTRICT_LAYER) ? DISTRICT_LAYER : undefined);
+      }, stackBeforeId(map, BORDER_LAYER));
 
       const none: MapLibreGL.FilterSpecification = ["==", ["get", "id"], -1];
       const lineLayout = { "line-join": "round", "line-cap": "round" } as const;
@@ -944,7 +963,7 @@ function TileDensityLayer({
           "line-blur": 6,
           "line-opacity": 0.12,
         },
-      });
+      }, stackBeforeId(map, FOCUS_GLOW_LAYER));
       map.addLayer({
         id: FOCUS_CASING_LAYER,
         type: "line",
@@ -956,7 +975,7 @@ function TileDensityLayer({
           "line-width": FOCUS_CASING_WIDTH,
           "line-opacity": 0.85,
         },
-      });
+      }, stackBeforeId(map, FOCUS_CASING_LAYER));
       map.addLayer({
         id: FOCUS_INNER_LAYER,
         type: "line",
@@ -967,7 +986,7 @@ function TileDensityLayer({
           "line-color": "#ffffff",
           "line-width": FOCUS_INNER_WIDTH,
         },
-      });
+      }, stackBeforeId(map, FOCUS_INNER_LAYER));
     }
 
     return () => {
@@ -1000,7 +1019,7 @@ function TileDensityLayer({
           "line-opacity": DISTRICT_OPACITY,
           "line-blur": 0.3,
         },
-      }, map.getLayer(FOCUS_GLOW_LAYER) ? FOCUS_GLOW_LAYER : undefined);
+      }, stackBeforeId(map, DISTRICT_LAYER));
     }
 
     return () => {
