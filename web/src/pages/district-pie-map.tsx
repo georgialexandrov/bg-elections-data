@@ -43,6 +43,8 @@ const TILE_SOURCE = "region-tiles";
 const TILE_LAYER = "region-tiles-fill";
 const BORDER_SOURCE = "region-borders";
 const BORDER_LAYER = "region-borders-line";
+const DISTRICT_SOURCE = "district-borders";
+const DISTRICT_LAYER = "district-borders-line";
 const OTHER_COLOR = "#999";
 
 // Municipality/МИР separators are drawn as soft white seams between
@@ -57,6 +59,19 @@ const BORDER_WIDTH: MapLibreGL.ExpressionSpecification = [
   8, 1,
   11, 2,
   14, 3,
+];
+
+// Oblast outlines sit one step up the hierarchy: a soft grey line,
+// slightly wider than the white seams, so the 28 districts (and the
+// country's edge) stay legible without going back to dark ink.
+const DISTRICT_COLOR = "#6b6b6b";
+const DISTRICT_OPACITY = 0.7;
+const DISTRICT_WIDTH: MapLibreGL.ExpressionSpecification = [
+  "interpolate", ["linear"], ["zoom"],
+  6, 1,
+  8, 1.4,
+  11, 2,
+  14, 2.5,
 ];
 const MIN_SHARE = 0.02;
 /** Web Mercator stretches a degree of latitude by 1/cos(lat), so a
@@ -511,6 +526,7 @@ function onSourceReloaded(
 
 function TileDensityLayer({
   regions,
+  districts,
   showNonVoters,
   geoLevel,
   activeParty,
@@ -520,6 +536,8 @@ function TileDensityLayer({
   onRegionHover,
 }: {
   regions: GeoRegion[];
+  /** Oblast polygons drawn as a stronger outline over the region seams. */
+  districts: GeoRegion[];
   showNonVoters: boolean;
   geoLevel: GeoLevel;
   activeParty: string | null;
@@ -549,6 +567,18 @@ function TileDensityLayer({
       })),
     }),
     [regions],
+  );
+
+  const districtData = useMemo(
+    () => ({
+      type: "FeatureCollection" as const,
+      features: districts.map((d) => ({
+        type: "Feature" as const,
+        geometry: d.geo,
+        properties: { id: d.id },
+      })),
+    }),
+    [districts],
   );
 
   // Fit the viewport to the full set of municipalities on first load
@@ -815,7 +845,9 @@ function TileDensityLayer({
           },
           "line-blur": 0.3,
         },
-      });
+      // Keep the region seams under the oblast outlines when the region
+      // set changes (tab switch) and this layer is re-added.
+      }, map.getLayer(DISTRICT_LAYER) ? DISTRICT_LAYER : undefined);
     }
 
     return () => {
@@ -825,6 +857,36 @@ function TileDensityLayer({
       } catch { /* destroyed */ }
     };
   }, [map, isLoaded, borderData]);
+
+  useEffect(() => {
+    if (!map || !isLoaded) return;
+
+    const existing = map.getSource(DISTRICT_SOURCE);
+    if (existing) {
+      (existing as MapLibreGL.GeoJSONSource).setData(districtData as any);
+    } else {
+      map.addSource(DISTRICT_SOURCE, { type: "geojson", data: districtData as any });
+      map.addLayer({
+        id: DISTRICT_LAYER,
+        type: "line",
+        source: DISTRICT_SOURCE,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-color": DISTRICT_COLOR,
+          "line-width": DISTRICT_WIDTH,
+          "line-opacity": DISTRICT_OPACITY,
+          "line-blur": 0.3,
+        },
+      });
+    }
+
+    return () => {
+      try {
+        if (map.getLayer(DISTRICT_LAYER)) map.removeLayer(DISTRICT_LAYER);
+        if (map.getSource(DISTRICT_SOURCE)) map.removeSource(DISTRICT_SOURCE);
+      } catch { /* destroyed */ }
+    };
+  }, [map, isLoaded, districtData]);
 
   // Highlight the hovered municipality's outline so the user can see
   // *where* the tooltip data lives, even while mousing over tiles far
@@ -1111,6 +1173,10 @@ export default function DistrictPieMap() {
   const { data: abroadData } = useAbroadByCountry(electionId);
   const election: Election | null = geoData?.election ?? null;
   const regions: GeoRegion[] = (geoData?.areas ?? []) as GeoRegion[];
+  // Oblast outlines for the border hierarchy. Shared React Query cache
+  // key with any other districts view, so it's fetched once per election.
+  const { data: districtGeo } = useGeoResults(electionId, "districts");
+  const districts: GeoRegion[] = (districtGeo?.areas ?? []) as GeoRegion[];
   const abroadCountries: AbroadCountry[] = abroadData?.countries ?? [];
   const error = queryError instanceof Error ? queryError.message : null;
   const isLocalElection = election?.type.startsWith("local_") ?? false;
@@ -1490,6 +1556,7 @@ export default function DistrictPieMap() {
               <>
                 <TileDensityLayer
                   regions={regions}
+                  districts={districts}
                   showNonVoters={showNonVoters}
                   geoLevel={geoLevel}
                   activeParty={activeParty}
