@@ -56,6 +56,8 @@ CIK_EXPORTS_DIR = DATA_DIR / "cik-exports"
 PRESIDENT_CANDIDATE_FILES: list[tuple[str, Path]] = [
     ("pvrns2021_pvr_r1", CIK_EXPORTS_DIR / "pvrns2021_tur1/pvr/cik_candidates_14.11.2021.txt"),
     ("pvrns2021_pvr_r2", CIK_EXPORTS_DIR / "pvrns2021_tur2/cik_candidates_21.11.2021.txt"),
+    ("pvr202610_r1",     CIK_EXPORTS_DIR / "pvr202610_tur1/cik_candidates_25.10.2026.txt"),
+    ("pvr202610_r2",     CIK_EXPORTS_DIR / "pvr202610_tur2/cik_candidates_01.11.2026.txt"),
 ]
 
 # Candidate committee colors — when a candidate is backed by a major party but
@@ -64,6 +66,9 @@ PRESIDENT_CANDIDATE_FILES: list[tuple[str, Path]] = [
 PRESIDENT_CANDIDATE_COLORS: dict[str, str] = {
     "ИК за Румен Радев и Илияна Йотова":        "#D61920",  # BSP red
     "ИК за Анастас Герджиков и Невяна Митева":  "#0054A6",  # GERB blue
+    # pvr202610 — same colours as Wikipedia's poll-table party templates
+    "ИК за Илияна Йотова и Кирил Вълчев":       "#204a41",  # Прогресивна България green
+    "ИК за Андрей Гюров и Георги Кандев":        "#FFC300",  # Продължаваме Промяната yellow
 }
 
 ORPHAN_PLACEHOLDER_COLOR = "#999999"
@@ -269,7 +274,7 @@ def finalize_president_ballots(cur: sqlite3.Cursor) -> None:
                 "SELECT NOT EXISTS ("
                 "  SELECT 1 FROM election_parties "
                 "  WHERE party_id = ? AND election_id NOT IN ("
-                "    SELECT id FROM elections WHERE slug LIKE 'pvrns2021_pvr%'"
+                "    SELECT id FROM elections WHERE type = 'president'"
                 "  )"
                 ")",
                 (party_id,),

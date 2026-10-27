@@ -36,6 +36,9 @@ VALIDATORS = {
     'pe202410':                 split4.validate,
     'pe202410_ks':              split4.validate,
     'pe202604':                 split4.validate,
+    # pvr202610: stride-6 votes with real paper/machine split, no preferences.
+    'pvr202610_r1':             split4.validate,
+    'pvr202610_r2':             split4.validate,
 }
 
 

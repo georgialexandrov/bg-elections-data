@@ -113,8 +113,8 @@ def build_party_index(conn: sqlite3.Connection) -> dict[str, int]:
 # Delete any prior pe202604 rows so the script is re-runnable
 # ---------------------------------------------------------------------------
 
-def delete_existing(conn: sqlite3.Connection) -> int | None:
-    row = conn.execute("SELECT id FROM elections WHERE slug = ?", (SLUG,)).fetchone()
+def delete_existing(conn: sqlite3.Connection, slug: str = SLUG) -> int | None:
+    row = conn.execute("SELECT id FROM elections WHERE slug = ?", (slug,)).fetchone()
     if not row:
         return None
     eid = row[0]
@@ -158,19 +158,22 @@ def ensure_columns(conn: sqlite3.Connection) -> None:
             conn.execute(f"ALTER TABLE sections ADD COLUMN {col} {typedef}")
 
 
-def insert_election(conn: sqlite3.Connection) -> int:
+def insert_election(conn: sqlite3.Connection, slug: str = SLUG, name: str = ELECTION_NAME,
+                    etype: str = ELECTION_TYPE, date: str = ELECTION_DATE,
+                    round_: int = ELECTION_ROUND) -> int:
     conn.execute(
         "INSERT INTO elections (slug, name, type, date, round) VALUES (?,?,?,?,?)",
-        (SLUG, ELECTION_NAME, ELECTION_TYPE, ELECTION_DATE, ELECTION_ROUND),
+        (slug, name, etype, date, round_),
     )
-    return conn.execute("SELECT id FROM elections WHERE slug = ?", (SLUG,)).fetchone()[0]
+    return conn.execute("SELECT id FROM elections WHERE slug = ?", (slug,)).fetchone()[0]
 
 
-def copy_parties(conn: sqlite3.Connection, temp: sqlite3.Connection, eid: int) -> int:
+def copy_parties(conn: sqlite3.Connection, temp: sqlite3.Connection, eid: int,
+                 temp_eid: int = 1) -> dict:
     """Map CIK ballot numbers → existing or new `parties.id`, write election_parties."""
     party_index = build_party_index(conn)
     rows = temp.execute(
-        "SELECT number, name FROM parties WHERE election_id = 1 ORDER BY number"
+        "SELECT number, name FROM parties WHERE election_id = ? ORDER BY number", (temp_eid,)
     ).fetchall()
 
     matched = 0
@@ -205,8 +208,14 @@ def _norm_ekatte(ekatte: str | None) -> str:
     return str(ekatte).lstrip("0")
 
 
-def copy_sections_and_locations(conn: sqlite3.Connection, temp: sqlite3.Connection, eid: int) -> dict:
-    """Insert sections + deduplicate locations. CIK lat/lng overrides existing values."""
+def copy_sections_and_locations(conn: sqlite3.Connection, temp: sqlite3.Connection, eid: int,
+                                temp_eid: int = 1,
+                                fallback_coords: dict[str, tuple[float, float]] | None = None) -> dict:
+    """Insert sections + deduplicate locations. CIK lat/lng overrides existing values.
+
+    `fallback_coords` (section_code → (lat, lng)) fills sections whose
+    sections.txt row carries no coordinates — e.g. from the map.cik.bg JSON.
+    """
     # Pre-load existing locations for dedup. Key is (normalised_ekatte, normalised_address)
     # so "00702" and "702" collide, as do "ГР. АСЕНОВГРАД..." and "ГР.АСЕНОВГРАД...".
     loc_index: dict[tuple[str, str], int] = {}
@@ -222,7 +231,7 @@ def copy_sections_and_locations(conn: sqlite3.Connection, temp: sqlite3.Connecti
     rows = temp.execute(
         "SELECT section_code, rik_code, rik_name, ekatte, settlement_name, address, "
         "       is_mobile, is_ship, machine_count, lat, lng "
-        "FROM sections WHERE election_id = 1"
+        "FROM sections WHERE election_id = ?", (temp_eid,)
     ).fetchall()
 
     new_locations = 0
@@ -232,6 +241,8 @@ def copy_sections_and_locations(conn: sqlite3.Connection, temp: sqlite3.Connecti
 
     for (section_code, rik_code, rik_name, ekatte, settlement,
          address, is_mobile, is_ship, machines, lat, lng) in rows:
+        if (lat is None or lng is None) and fallback_coords and section_code in fallback_coords:
+            lat, lng = fallback_coords[section_code]
         ekatte = ekatte or ""
         ek_key = _norm_ekatte(ekatte)
         addr_key = normalize_address(address) if address else ""
@@ -278,12 +289,13 @@ def copy_sections_and_locations(conn: sqlite3.Connection, temp: sqlite3.Connecti
     }
 
 
-def copy_protocols_votes_preferences(conn: sqlite3.Connection, temp: sqlite3.Connection, eid: int) -> dict:
+def copy_protocols_votes_preferences(conn: sqlite3.Connection, temp: sqlite3.Connection, eid: int,
+                                     temp_eid: int = 1) -> dict:
     # protocols
     proto_rows = temp.execute(
         "SELECT section_code, form_num, received_ballots, registered_voters, added_voters, "
         "       actual_voters, invalid_votes, null_votes "
-        "FROM protocols WHERE election_id = 1"
+        "FROM protocols WHERE election_id = ?", (temp_eid,)
     ).fetchall()
     conn.executemany(
         "INSERT INTO protocols (election_id, section_code, form_num, received_ballots, "
@@ -295,7 +307,7 @@ def copy_protocols_votes_preferences(conn: sqlite3.Connection, temp: sqlite3.Con
     # votes (WITHOUT ROWID — section_code + party_number compound PK on target)
     votes_rows = temp.execute(
         "SELECT section_code, party_number, total, paper, machine "
-        "FROM votes WHERE election_id = 1"
+        "FROM votes WHERE election_id = ?", (temp_eid,)
     ).fetchall()
     conn.executemany(
         "INSERT INTO votes (election_id, section_code, party_number, total, paper, machine) "
@@ -306,7 +318,7 @@ def copy_protocols_votes_preferences(conn: sqlite3.Connection, temp: sqlite3.Con
     # preferences
     pref_rows = temp.execute(
         "SELECT section_code, party_number, candidate_number, total, paper, machine "
-        "FROM preferences WHERE election_id = 1"
+        "FROM preferences WHERE election_id = ?", (temp_eid,)
     ).fetchall()
     conn.executemany(
         "INSERT INTO preferences (election_id, section_code, party_number, candidate_number, "
@@ -321,10 +333,11 @@ def copy_protocols_votes_preferences(conn: sqlite3.Connection, temp: sqlite3.Con
     }
 
 
-def copy_candidates(conn: sqlite3.Connection, temp: sqlite3.Connection, eid: int) -> int:
+def copy_candidates(conn: sqlite3.Connection, temp: sqlite3.Connection, eid: int,
+                    temp_eid: int = 1) -> int:
     rows = temp.execute(
         "SELECT rik_code, party_number, list_position, name "
-        "FROM candidates WHERE election_id = 1"
+        "FROM candidates WHERE election_id = ?", (temp_eid,)
     ).fetchall()
 
     # Resolve person_id via persons table
@@ -364,11 +377,11 @@ def populate_protocol_urls(conn: sqlite3.Connection, eid: int) -> int:
     return len(updates)
 
 
-def populate_video_urls(conn: sqlite3.Connection, eid: int) -> int:
-    if not STREAMS_JSON.exists():
-        print(f"  WARN: stream JSON not found at {STREAMS_JSON} — skipping video_url")
+def populate_video_urls(conn: sqlite3.Connection, eid: int, streams_json: Path = STREAMS_JSON) -> int:
+    if not streams_json.exists():
+        print(f"  WARN: stream JSON not found at {streams_json} — skipping video_url")
         return 0
-    with STREAMS_JSON.open() as f:
+    with streams_json.open() as f:
         streams = json.load(f)
     by_section = {entry["section"]: entry["url"] for entry in streams if entry.get("section")}
 
