@@ -61,6 +61,10 @@ const OTHER_COLOR = "#999";
 // national view, a clear seam once tiles are large.
 const BORDER_COLOR = "#ffffff";
 const BORDER_OPACITY = 0.85;
+// When a party or region is focused the other tiles fade to near the
+// background, where a white seam disappears. Swap to a light grey line
+// so the municipality mesh stays readable around the highlighted tiles.
+const BORDER_DIMMED_COLOR = "#c4c4c4";
 const BORDER_WIDTH: MapLibreGL.ExpressionSpecification = [
   "interpolate", ["linear"], ["zoom"],
   6, 0.6,
@@ -862,6 +866,7 @@ function TileDensityLayer({
         layout: { "line-join": "round", "line-cap": "round" },
         paint: {
           "line-color": BORDER_COLOR,
+          "line-color-transition": { duration: 300, delay: 0 },
           "line-width": BORDER_WIDTH,
           // Seams fade in with the first tiles instead of popping in
           // ahead of them; later tile swaps leave them at rest opacity.
@@ -956,6 +961,16 @@ function TileDensityLayer({
       } catch { /* destroyed */ }
     };
   }, [map, isLoaded, districtData]);
+
+  useEffect(() => {
+    if (!map || !isLoaded || !map.getLayer(BORDER_LAYER)) return;
+    const dimmed = activeParty != null || selectedRegionId != null;
+    map.setPaintProperty(
+      BORDER_LAYER,
+      "line-color",
+      dimmed ? BORDER_DIMMED_COLOR : BORDER_COLOR,
+    );
+  }, [map, isLoaded, borderData, activeParty, selectedRegionId]);
 
   // Highlight the hovered municipality's outline so the user can see
   // *where* the tooltip data lives, even while mousing over tiles far
