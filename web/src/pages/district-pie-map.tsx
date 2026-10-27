@@ -420,8 +420,10 @@ function aggregateRegionParties(
 // re-draws only the tiles that should stand out (filtered by party
 // and/or region) at its own constant opacity. Both fade natively.
 const TILE_OPACITY = 0.9;
-const TILE_OPACITY_PARTY_DIM = 0.06;
-const TILE_OPACITY_REGION_DIM = 0.12;
+// Muted tiles stay faintly visible so the surrounding mix still reads
+// as context instead of vanishing to white.
+const TILE_OPACITY_PARTY_DIM = 0.2;
+const TILE_OPACITY_REGION_DIM = 0.18;
 const FOCUS_OPACITY_PARTY = 1;
 const FOCUS_OPACITY_REGION = 0.9;
 // Two focus layers so switching party A → B cross-fades: A fades out on
