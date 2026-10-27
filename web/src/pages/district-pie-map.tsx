@@ -41,6 +41,7 @@ const BULGARIA_ZOOM = 6.9;
 const NON_VOTER_COLOR = "#c0c0c0";
 const TILE_SOURCE = "region-tiles";
 const TILE_LAYER = "region-tiles-fill";
+const TILE_GAP_LAYER = "region-tiles-gap";
 const BORDER_SOURCE = "region-borders";
 const BORDER_LAYER = "region-borders-line";
 const DISTRICT_SOURCE = "district-borders";
@@ -112,6 +113,20 @@ const MIN_SHARE = 0.02;
  *  while the cell count (and the tile budget) stays the same. */
 const TILE_ASPECT = Math.sqrt(Math.cos((42.7 * Math.PI) / 180));
 
+const BACKGROUND_COLOR = "#f8f8f8";
+
+/** Gutter between tiles, in screen pixels, drawn as a background-coloured
+ *  stroke on every tile edge. At the national zoom a cell is ~4px and any
+ *  gutter turns into moiré, so it fades in only once tiles are big enough
+ *  to read as a mosaic. A stroke instead of shrinking the squares keeps
+ *  the full cell clickable — the gap never falls through to "empty map". */
+const TILE_GAP_WIDTH: MapLibreGL.ExpressionSpecification = [
+  "interpolate", ["linear"], ["zoom"],
+  7.5, 0,
+  9, 1.25,
+  11, 2.5,
+];
+
 const BLANK_STYLE: MapLibreGL.StyleSpecification = {
   version: 8,
   name: "blank",
@@ -120,7 +135,7 @@ const BLANK_STYLE: MapLibreGL.StyleSpecification = {
     {
       id: "background",
       type: "background",
-      paint: { "background-color": "#f8f8f8" },
+      paint: { "background-color": BACKGROUND_COLOR },
     },
   ],
 };
@@ -777,6 +792,10 @@ function TileDensityLayer({
           "fill-color": ["get", "color"],
           "fill-opacity": 0,
           "fill-opacity-transition": transition,
+          // Edges are covered by the gutter stroke once zoomed in; at the
+          // national zoom antialiasing only leaves faint seams between
+          // touching squares of the same colour.
+          "fill-antialias": false,
         },
       },
       beforeId,
@@ -792,18 +811,33 @@ function TileDensityLayer({
             "fill-color": ["get", "color"],
             "fill-opacity": 0,
             "fill-opacity-transition": transition,
+            "fill-antialias": false,
           },
         },
         beforeId,
       );
     }
+    // Gutter sits over every tile fill (base and both focus layers) so
+    // the mosaic reads the same dimmed or not, and under the borders.
+    map.addLayer(
+      {
+        id: TILE_GAP_LAYER,
+        type: "line",
+        source: TILE_SOURCE,
+        paint: {
+          "line-color": BACKGROUND_COLOR,
+          "line-width": TILE_GAP_WIDTH,
+        },
+      },
+      beforeId,
+    );
     const timers = focusClearTimers.current;
     return () => {
       timers.forEach((t) => clearTimeout(t));
       visibleRef.current = false;
       focusRef.current = { idx: 0, key: null };
       try {
-        for (const id of [...TILE_FOCUS_LAYERS, TILE_LAYER]) {
+        for (const id of [TILE_GAP_LAYER, ...TILE_FOCUS_LAYERS, TILE_LAYER]) {
           if (map.getLayer(id)) map.removeLayer(id);
         }
         if (map.getSource(TILE_SOURCE)) map.removeSource(TILE_SOURCE);
