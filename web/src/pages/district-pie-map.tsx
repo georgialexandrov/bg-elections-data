@@ -44,6 +44,12 @@ const BORDER_SOURCE = "region-borders";
 const BORDER_LAYER = "region-borders-line";
 const OTHER_COLOR = "#999";
 const MIN_SHARE = 0.02;
+/** Web Mercator stretches a degree of latitude by 1/cos(lat), so a
+ *  0.02°×0.02° cell renders ~36% taller than wide over Bulgaria. The
+ *  lattice squeezes latitude by cos(42.7°) — the country's mid-latitude —
+ *  and widens longitude by the same √ so tiles read as squares on screen
+ *  while the cell count (and the tile budget) stays the same. */
+const TILE_ASPECT = Math.sqrt(Math.cos((42.7 * Math.PI) / 180));
 
 const BLANK_STYLE: MapLibreGL.StyleSpecification = {
   version: 8,
@@ -80,10 +86,20 @@ function buildTileFeatures(
     properties: {},
   });
 
-  const half = gridStep / 2;
+  // One lattice anchored at 0°/0° for every region, not one per bbox —
+  // neighbouring regions' tiles line up edge to edge instead of
+  // overlapping or leaving slivers of background along shared borders.
+  const stepX = gridStep / TILE_ASPECT;
+  const stepY = gridStep * TILE_ASPECT;
+  const halfX = stepX / 2;
+  const halfY = stepY / 2;
   const cells: [number, number][] = [];
-  for (let x = minX + half; x < maxX; x += gridStep) {
-    for (let y = minY + half; y < maxY; y += gridStep) {
+  for (let i = Math.floor(minX / stepX); (i + 0.5) * stepX < maxX; i++) {
+    const x = (i + 0.5) * stepX;
+    if (x < minX) continue;
+    for (let j = Math.floor(minY / stepY); (j + 0.5) * stepY < maxY; j++) {
+      const y = (j + 0.5) * stepY;
+      if (y < minY) continue;
       const pt = turfPoint([x, y]);
       if (booleanPointInPolygon(pt, geo)) {
         cells.push([x, y]);
@@ -149,7 +165,7 @@ function buildTileFeatures(
       type: "Feature",
       geometry: {
         type: "Polygon",
-        coordinates: [[[cx - half, cy - half], [cx + half, cy - half], [cx + half, cy + half], [cx - half, cy + half], [cx - half, cy - half]]],
+        coordinates: [[[cx - halfX, cy - halfY], [cx + halfX, cy - halfY], [cx + halfX, cy + halfY], [cx - halfX, cy + halfY], [cx - halfX, cy - halfY]]],
       },
       properties: {
         region_id: region.id,
