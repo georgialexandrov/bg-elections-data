@@ -430,6 +430,10 @@ const FOCUS_OPACITY_REGION = 0.9;
 // one layer while B fades in on the other.
 const TILE_FOCUS_LAYERS = ["region-tiles-focus-a", "region-tiles-focus-b"] as const;
 const FADE_MS = 250;
+// Camera padding: the top inset clears the absolute-positioned controls
+// row, which can wrap to two lines on narrow viewports.
+const NATIONAL_PADDING = { top: 96, bottom: 32, left: 24, right: 24 };
+const REGION_PADDING = { top: 112, bottom: 64, left: 64, right: 64 };
 const EMPTY_FILTER: MapLibreGL.FilterSpecification = ["boolean", false];
 
 function prefersReducedMotion(): boolean {
@@ -510,6 +514,8 @@ function TileDensityLayer({
   // overflow the bottom once the legend sibling pushed the map
   // container shorter.
   const fittedRef = useRef(false);
+  const [fitted, setFitted] = useState(false);
+  const nationalBoundsRef = useRef<MapLibreGL.LngLatBoundsLike | null>(null);
   useEffect(() => {
     if (!map || !isLoaded || fittedRef.current || regions.length === 0) return;
     let minX = Infinity;
@@ -524,21 +530,20 @@ function TileDensityLayer({
       if (y2 > maxY) maxY = y2;
     }
     if (!isFinite(minX)) return;
+    nationalBoundsRef.current = [
+      [minX, minY],
+      [maxX, maxY],
+    ];
 
     const runFit = () => {
       map.resize();
-      map.fitBounds(
-        [
-          [minX, minY],
-          [maxX, maxY],
-        ],
-        {
-          padding: { top: 96, bottom: 32, left: 24, right: 24 },
-          animate: false,
-          maxZoom: 8,
-        },
-      );
+      map.fitBounds(nationalBoundsRef.current!, {
+        padding: NATIONAL_PADDING,
+        animate: false,
+        maxZoom: 8,
+      });
       fittedRef.current = true;
+      setFitted(true);
     };
 
     let raf2: number | null = null;
@@ -550,6 +555,36 @@ function TileDensityLayer({
       if (raf2 != null) cancelAnimationFrame(raf2);
     };
   }, [map, isLoaded, regions]);
+
+  // Glide to the selected region, and back out to the whole country
+  // when the selection clears. Waits for the initial fit so a shared
+  // ?region= link flies in from the national view rather than racing
+  // it. The first run (no selection yet) is a no-op.
+  const flownToRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!map || !isLoaded || !fitted) return;
+    if (flownToRef.current === selectedRegionId) return;
+    flownToRef.current = selectedRegionId;
+    const region =
+      selectedRegionId != null ? regions.find((r) => r.id === selectedRegionId) : null;
+    const duration = prefersReducedMotion() ? 0 : 700;
+    if (region) {
+      const [x1, y1, x2, y2] = bbox(region.geo as any);
+      map.fitBounds(
+        [
+          [x1, y1],
+          [x2, y2],
+        ],
+        { padding: REGION_PADDING, maxZoom: 9, duration },
+      );
+    } else if (nationalBoundsRef.current) {
+      map.fitBounds(nationalBoundsRef.current, {
+        padding: NATIONAL_PADDING,
+        maxZoom: 8,
+        duration,
+      });
+    }
+  }, [map, isLoaded, fitted, selectedRegionId, regions]);
 
   // Paint state for the base + focus layers lives in refs so the fade
   // timers below always act on the latest target, not a stale closure.
