@@ -116,16 +116,23 @@ const TILE_ASPECT = Math.sqrt(Math.cos((42.7 * Math.PI) / 180));
 const BACKGROUND_COLOR = "#f8f8f8";
 
 /** Gutter between tiles, in screen pixels, drawn as a background-coloured
- *  stroke on every tile edge. At the national zoom a cell is ~4px and any
- *  gutter turns into moiré, so it fades in only once tiles are big enough
- *  to read as a mosaic. A stroke instead of shrinking the squares keeps
- *  the full cell clickable — the gap never falls through to "empty map". */
-const TILE_GAP_WIDTH: MapLibreGL.ExpressionSpecification = [
-  "interpolate", ["linear"], ["zoom"],
-  7.5, 0,
-  9, 1.25,
-  11, 2.5,
-];
+ *  stroke on every tile edge. It stays off while a cell is under 8px
+ *  (the national zoom and one step in) where a sub-pixel gutter only
+ *  washes the colours out into a grid, then grows to 1.5px at a 20px
+ *  cell and 2px at 40px. A stroke instead of shrinking the
+ *  squares keeps the full cell clickable — the gap never falls through
+ *  to "empty map". */
+function tileGapWidth(gridStep: number): MapLibreGL.ExpressionSpecification {
+  // On-screen cell width at zoom 0 (512px world, 360° of longitude).
+  const cellPx0 = ((gridStep / TILE_ASPECT) * 512) / 360;
+  const zoomAt = (px: number) => Math.log2(px / cellPx0);
+  return [
+    "interpolate", ["linear"], ["zoom"],
+    zoomAt(8), 0,
+    zoomAt(20), 1.5,
+    zoomAt(40), 2,
+  ];
+}
 
 const BLANK_STYLE: MapLibreGL.StyleSpecification = {
   version: 8,
@@ -250,9 +257,9 @@ function buildTileFeatures(
 
 function getGridStep(level: GeoLevel): number {
   switch (level) {
-    case "riks": return 0.025;
+    case "riks": return 0.02;
     case "districts": return 0.04;
-    case "municipalities": return 0.02;
+    case "municipalities": return 0.015;
   }
 }
 
@@ -826,7 +833,7 @@ function TileDensityLayer({
         source: TILE_SOURCE,
         paint: {
           "line-color": BACKGROUND_COLOR,
-          "line-width": TILE_GAP_WIDTH,
+          "line-width": 0,
         },
       },
       beforeId,
@@ -844,6 +851,14 @@ function TileDensityLayer({
       } catch { /* destroyed */ }
     };
   }, [map, isLoaded]);
+
+  // The gutter tracks the active grid's on-screen cell size; switching
+  // tabs changes the grid, so retune it in place rather than re-adding
+  // the layer (which would also lose its slot under the borders).
+  useEffect(() => {
+    if (!map || !isLoaded || !map.getLayer(TILE_GAP_LAYER)) return;
+    map.setPaintProperty(TILE_GAP_LAYER, "line-width", tileGapWidth(getGridStep(geoLevel)));
+  }, [map, isLoaded, geoLevel]);
 
   // Swap tile data with a dip: fade the old tiles out while the worker
   // re-tiles the new data, then fade back in once both are done. Waiting
